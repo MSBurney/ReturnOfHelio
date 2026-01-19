@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://reticle001"]
+
+[ext_resource type="Script" path="res://scripts/ui/target_reticle.gd" id="1_reticle"]
+
+[node name="TargetReticle" type="Node2D"]
+z_index = 100
+script = ExtResource("1_reticle")
+
+[node name="Sprite" type="Sprite2D" parent="."]
