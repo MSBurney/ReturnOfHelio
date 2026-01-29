@@ -6,22 +6,31 @@ extends IsoEntity
 @export var bob_amplitude: float = 2.0  # Vertical bob amount
 @export var bob_speed: float = 2.0  # Bob cycle speed
 @export var max_hp: int = 3
+@export var invuln_time: float = 0.25
+@export var hit_flash_time: float = 0.1
+@export var knockback_strength: float = 1.5
 
 # AI properties
 @export var patrol_distance: float = 4.0  # Tiles/world units
 @export var patrol_speed: float = 1.5
 @export var chase_range: float = 3.0
 @export var chase_speed: float = 2.0
+@export var contact_damage: int = 1
+@export var contact_cooldown: float = 0.6
 
 var base_z: float = 0.0  # Ground level + float_height
 var bob_time: float = 0.0
 var hp: int = 0
 var patrol_origin: Vector2 = Vector2.ZERO
 var patrol_forward: bool = true
+var invuln_timer: float = 0.0
+var hit_flash_timer: float = 0.0
+var contact_timer: float = 0.0
 
 # References
 @onready var sprite: Sprite2D = $Sprite
 @onready var shadow: Sprite2D = $Shadow
+@onready var health_bar: Node2D = $HealthBar
 
 func _ready() -> void:
 	super._ready()
@@ -30,6 +39,7 @@ func _ready() -> void:
 	_setup_placeholder_sprites()
 	_update_screen_position()
 	hp = max_hp
+	_update_health_bar()
 
 func _setup_placeholder_sprites() -> void:
 	# Create enemy sprite (spiky ball)
@@ -72,6 +82,7 @@ func _setup_placeholder_sprites() -> void:
 
 func _process(delta: float) -> void:
 	# Bob up and down
+	_update_timers(delta)
 	_update_ai(delta)
 	var ground_height := _ground_height_at(world_pos.x, world_pos.y)
 	base_z = ground_height + float_height
@@ -98,9 +109,20 @@ func setup(tile_x: int, tile_y: int, ground_height: float) -> void:
 	_update_screen_position()
 	_update_depth_sort()
 
-func take_damage(_amount: int) -> void:
+func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
 	# Called when hit by player
-	hp -= _amount
+	if invuln_timer > 0.0:
+		return
+	hp -= amount
+	invuln_timer = invuln_time
+	hit_flash_timer = hit_flash_time
+	if sprite:
+		sprite.modulate = Color(1, 1, 1, 1)
+	if source_dir.length_squared() > 0.0:
+		var knock := source_dir.normalized() * knockback_strength
+		world_pos.x += knock.x
+		world_pos.y += knock.y
+	_update_health_bar()
 	if hp <= 0:
 		queue_free()
 
@@ -112,6 +134,7 @@ func _update_ai(delta: float) -> void:
 	var player := _find_chase_target()
 	if player:
 		_chase_player(player, delta)
+		_try_contact_damage(player)
 	else:
 		_patrol(delta)
 
@@ -159,3 +182,38 @@ func _patrol(delta: float) -> void:
 	elif world_pos.x <= patrol_min:
 		world_pos.x = patrol_min
 		patrol_forward = true
+
+func _try_contact_damage(player: Node2D) -> void:
+	if contact_timer > 0.0:
+		return
+	if not player or not player.has_method("get_world_pos"):
+		return
+	# Flying enemies only damage airborne players
+	if player.has_method("get"):
+		var grounded: bool = player.get("is_on_ground") == true
+		if grounded:
+			return
+		var homing: bool = player.get("is_homing") == true
+		if homing:
+			return
+	var p_pos: Vector3 = player.get_world_pos()
+	var dist := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y).length()
+	if dist <= 0.8:
+		var dir := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y)
+		if player.has_method("take_damage"):
+			player.take_damage(contact_damage, dir)
+		contact_timer = contact_cooldown
+
+func _update_timers(delta: float) -> void:
+	if invuln_timer > 0.0:
+		invuln_timer = maxf(invuln_timer - delta, 0.0)
+	if hit_flash_timer > 0.0:
+		hit_flash_timer = maxf(hit_flash_timer - delta, 0.0)
+		if hit_flash_timer == 0.0 and sprite:
+			sprite.modulate = Color(1, 1, 1, 1)
+	if contact_timer > 0.0:
+		contact_timer = maxf(contact_timer - delta, 0.0)
+
+func _update_health_bar() -> void:
+	if health_bar and health_bar.has_method("set_values"):
+		health_bar.set_values(hp, max_hp)

@@ -9,8 +9,8 @@ extends IsoEntity
 @export var gravity: float = 350.0
 @export var homing_attack_speed: float = 200.0
 @export var homing_attack_range: float = 64.0  # Screen pixels
-@export var stomp_bounce_velocity: float = 100.0  # Bounce after stomping enemy
-@export var homing_bounce_velocity: float = 80.0  # Bounce after homing attack
+@export var stomp_bounce_velocity: float = 150.0  # Bounce after stomping enemy
+@export var homing_bounce_velocity: float = 150.0  # Bounce after homing attack
 @export var max_step_height: float = 4.0  # Maximum height we can walk up without jumping
 
 # Combat / movement state
@@ -33,6 +33,12 @@ var action_state: ActionState = ActionState.GROUNDED
 @export var charge_recovery: float = 0.2
 @export var attack_visual_distance: float = 48.0  # Screen pixels
 @export var attack_visual_time: float = 0.18
+
+# Health/feedback
+@export var max_hp: int = 5
+@export var invuln_time: float = 0.5
+@export var hit_flash_time: float = 0.12
+@export var knockback_strength: float = 2.0  # World units per second
 
 var velocity: Vector3 = Vector3.ZERO
 
@@ -64,12 +70,27 @@ var hand_attack_explosion: Array[bool] = [false, false]
 
 var explosions: Array[Dictionary] = []
 
+# Movement feel
+@export var coyote_time: float = 0.12
+@export var jump_buffer_time: float = 0.12
+@export var air_accel_multiplier: float = 0.7
+@export var air_decel_multiplier: float = 0.8
+
+var coyote_timer: float = 0.0
+var jump_buffer_timer: float = 0.0
+
+# Health state
+var hp: int = 0
+var invuln_timer: float = 0.0
+var hit_flash_timer: float = 0.0
+
 # References
 @onready var sprite: Sprite2D = $Sprite
 @onready var shadow: Sprite2D = $Shadow
 @onready var target_reticle: Node2D = $TargetReticle
 @onready var hand_left: Sprite2D = $HandLeft
 @onready var hand_right: Sprite2D = $HandRight
+@onready var health_bar: Node2D = $HealthBar
 
 var _move_left_action: StringName
 var _move_right_action: StringName
@@ -84,6 +105,8 @@ func _ready() -> void:
 	_setup_input_actions()
 	_setup_placeholder_sprites()
 	_update_screen_position()
+	hp = max_hp
+	_update_health_bar()
 
 func _setup_input_actions() -> void:
 	# Map actions per player
@@ -153,6 +176,7 @@ func _create_hand_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 func _physics_process(delta: float) -> void:
+	_update_timers(delta)
 	_process_attack(delta)
 	_update_hands(delta)
 	if is_homing:
@@ -182,10 +206,16 @@ func _process_movement(delta: float) -> void:
 	if world_dir.length_squared() > 0.0:
 		last_move_dir = world_dir.normalized()
 	
+	var accel := acceleration
+	var decel := deceleration
+	if not is_on_ground:
+		accel *= air_accel_multiplier
+		decel *= air_decel_multiplier
+	
 	if world_dir.length() > 0:
-		horizontal_velocity = horizontal_velocity.move_toward(target_velocity, acceleration * delta)
+		horizontal_velocity = horizontal_velocity.move_toward(target_velocity, accel * delta)
 	else:
-		horizontal_velocity = horizontal_velocity.move_toward(Vector2.ZERO, deceleration * delta)
+		horizontal_velocity = horizontal_velocity.move_toward(Vector2.ZERO, decel * delta)
 	
 	var new_x: float = world_pos.x + horizontal_velocity.x * delta
 	var new_y: float = world_pos.y + horizontal_velocity.y * delta
@@ -224,13 +254,17 @@ func _process_gravity(delta: float) -> void:
 
 func _process_jump() -> void:
 	if Input.is_action_just_pressed(_jump_action):
-		if is_on_ground:
-			# Ground jump
+		jump_buffer_timer = jump_buffer_time
+	
+	if jump_buffer_timer > 0.0:
+		if is_on_ground or coyote_timer > 0.0:
+			# Ground jump (with coyote time)
 			velocity.z = jump_velocity
 			is_on_ground = false
 			_set_action_state(ActionState.AIRBORNE)
 			can_double_jump = true  # Enable double jump after first jump
 			just_jumped = true
+			jump_buffer_timer = 0.0
 		elif not is_on_ground and can_double_jump:
 			# Airborne with double jump available
 			var target := _find_homing_target()
@@ -238,10 +272,12 @@ func _process_jump() -> void:
 				# Homing attack takes priority when target exists
 				_start_homing_attack(target)
 				can_double_jump = false
+				jump_buffer_timer = 0.0
 			else:
 				# No target - perform double jump
 				velocity.z = jump_velocity * 0.8
 				can_double_jump = false
+				jump_buffer_timer = 0.0
 
 func _find_homing_target() -> Node2D:
 	var hurtboxes := get_tree().get_nodes_in_group("hurtboxes")
@@ -359,9 +395,14 @@ func _check_enemy_stomp() -> void:
 		# Check if we're above the enemy and close enough horizontally
 		var horizontal_dist := Vector2(world_pos.x - enemy_pos.x, world_pos.y - enemy_pos.y).length()
 		var vertical_diff := world_pos.z - enemy_pos.z
+		var stomp_dist := 1.0
+		var stomp_height := 12.0
+		if target is GroundEnemy:
+			stomp_dist = 1.5
+			stomp_height = 18.0
 		
 		# Stomp detection: close horizontally, coming from above
-		if horizontal_dist < 1.0 and vertical_diff > 0 and vertical_diff < 12.0:
+		if horizontal_dist < stomp_dist and vertical_diff > 0 and vertical_diff < stomp_height:
 			# Stomp the enemy
 			if target.has_method("get_owner_body"):
 				var owner_body: Node = target.get_owner_body()
@@ -395,6 +436,7 @@ func _update_collision() -> void:
 		is_on_ground = true
 		_set_action_state(ActionState.GROUNDED)
 		can_double_jump = false  # Reset double jump when landing
+		coyote_timer = coyote_time
 	else:
 		is_on_ground = false
 		if not is_homing:
@@ -416,6 +458,40 @@ func _set_action_state(new_state: ActionState) -> void:
 	if action_state == new_state:
 		return
 	action_state = new_state
+
+func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
+	if invuln_timer > 0.0:
+		return
+	hp -= amount
+	invuln_timer = invuln_time
+	hit_flash_timer = hit_flash_time
+	if sprite:
+		sprite.modulate = Color(1, 1, 1, 1)
+	if source_dir.length_squared() > 0.0:
+		var knock := source_dir.normalized() * knockback_strength
+		world_pos.x += knock.x
+		world_pos.y += knock.y
+	if hp <= 0:
+		hp = max_hp
+		_update_health_bar()
+		return
+	_update_health_bar()
+
+func _update_timers(delta: float) -> void:
+	if invuln_timer > 0.0:
+		invuln_timer = maxf(invuln_timer - delta, 0.0)
+	if hit_flash_timer > 0.0:
+		hit_flash_timer = maxf(hit_flash_timer - delta, 0.0)
+		if hit_flash_timer == 0.0 and sprite:
+			sprite.modulate = Color(1, 1, 1, 1)
+	if not is_on_ground and coyote_timer > 0.0:
+		coyote_timer = maxf(coyote_timer - delta, 0.0)
+	if jump_buffer_timer > 0.0:
+		jump_buffer_timer = maxf(jump_buffer_timer - delta, 0.0)
+
+func _update_health_bar() -> void:
+	if health_bar and health_bar.has_method("set_values"):
+		health_bar.set_values(hp, max_hp)
 
 func _process_attack(delta: float) -> void:
 	# Timers
@@ -520,9 +596,13 @@ func _apply_cone_damage(damage: int) -> void:
 		if best_target.has_method("get_owner_body"):
 			var owner_body: Node = best_target.get_owner_body()
 			if owner_body and owner_body.has_method("take_damage"):
-				owner_body.take_damage(damage)
+				var target_pos: Vector3 = best_target.get_world_pos()
+				var dir := Vector2(target_pos.x - world_pos.x, target_pos.y - world_pos.y)
+				owner_body.take_damage(damage, dir)
 		elif best_target.has_method("take_damage"):
-			best_target.take_damage(damage)
+			var target_pos: Vector3 = best_target.get_world_pos()
+			var dir := Vector2(target_pos.x - world_pos.x, target_pos.y - world_pos.y)
+			best_target.take_damage(damage, dir)
 
 func _apply_explosive_damage(damage: int, radius: float) -> void:
 	_apply_explosive_damage_at(Vector2(world_pos.x, world_pos.y), damage, radius)
@@ -544,9 +624,11 @@ func _apply_explosive_damage_at(center: Vector2, damage: int, radius: float) -> 
 			if target.has_method("get_owner_body"):
 				var owner_body: Node = target.get_owner_body()
 				if owner_body and owner_body.has_method("take_damage"):
-					owner_body.take_damage(damage)
+					var dir := Vector2(target_pos.x - center.x, target_pos.y - center.y)
+					owner_body.take_damage(damage, dir)
 			elif target.has_method("take_damage"):
-				target.take_damage(damage)
+				var dir := Vector2(target_pos.x - center.x, target_pos.y - center.y)
+				target.take_damage(damage, dir)
 
 func _start_hand_attack(hand_index: int, trigger_explosion: bool) -> void:
 	if hand_index < 0 or hand_index >= hand_attack_time.size():

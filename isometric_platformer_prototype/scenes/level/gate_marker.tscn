@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://cffi07ubtk5aa"]
+
+[ext_resource type="Script" path="res://scripts/level/gate_marker.gd" id="1_gate"]
+
+[node name="GateMarker" type="Node2D"]
+script = ExtResource("1_gate")
+
+[node name="Sprite" type="Sprite2D" parent="."]
