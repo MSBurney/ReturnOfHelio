@@ -29,52 +29,12 @@ static func get_depth_sort(world_pos: Vector3) -> float:
 # Input is in screen-space (up/down/left/right), output is world-space
 # Compensates for isometric projection so screen-space speed is uniform
 static func input_to_world_direction(input: Vector2) -> Vector2:
-	# For 2:1 isometric projection:
-	# - Screen X movement: 8 pixels per world unit (TILE_WIDTH_HALF)
-	# - Screen Y movement: 4 pixels per world unit (TILE_HEIGHT_HALF)
-	# 
-	# To make screen movement feel uniform, we need to scale world movement
-	# so that 1 second of input produces equal screen displacement in all directions.
-	#
-	# Screen UP/DOWN moves along world diagonal (x+y or x-y), affecting screen Y
-	# Screen LEFT/RIGHT moves along world diagonal, affecting screen X
-	#
-	# Raw world directions:
-	# UP (input.y = -1):    world (-1, -1) -> screen (0, -8) via projection
-	# DOWN (input.y = +1):  world (+1, +1) -> screen (0, +8)
-	# LEFT (input.x = -1):  world (-1, +1) -> screen (-16, 0)
-	# RIGHT (input.x = +1): world (+1, -1) -> screen (+16, 0)
-	#
-	# Horizontal screen movement is 2x faster than vertical for same world speed.
-	# To equalize: scale horizontal input by 0.5, or scale vertical input by 2.
-	# We'll scale the world direction components to achieve uniform screen speed.
-	
 	if input.length_squared() == 0:
 		return Vector2.ZERO
 	
-	# Base world direction from input
 	var world_x: float = input.x + input.y   # right + down
 	var world_y: float = -input.x + input.y  # -right + down
 	
-	# The projection formula:
-	# screen_x = (world_x - world_y) * 8
-	# screen_y = (world_x + world_y) * 4
-	#
-	# For pure horizontal input (1, 0): world = (1, -1)
-	#   screen_x = (1 - (-1)) * 8 = 16
-	#   screen_y = (1 + (-1)) * 4 = 0
-	#   screen magnitude = 16
-	#
-	# For pure vertical input (0, -1): world = (-1, -1)
-	#   screen_x = (-1 - (-1)) * 8 = 0
-	#   screen_y = (-1 + (-1)) * 4 = -8
-	#   screen magnitude = 8
-	#
-	# To equalize, we want both to produce the same screen magnitude.
-	# Scale factor for vertical: 16/8 = 2
-	# But we want uniform feel, so let's normalize to screen-space.
-	
-	# Convert to screen displacement direction
 	var screen_dx: float = (world_x - world_y) * TILE_WIDTH_HALF
 	var screen_dy: float = (world_x + world_y) * TILE_HEIGHT_HALF
 	var screen_dir := Vector2(screen_dx, screen_dy)
@@ -82,15 +42,8 @@ static func input_to_world_direction(input: Vector2) -> Vector2:
 	if screen_dir.length_squared() == 0:
 		return Vector2.ZERO
 	
-	# Normalize in screen space, then convert back to world space
 	screen_dir = screen_dir.normalized()
 	
-	# Inverse projection: screen -> world
-	# screen_x = (world_x - world_y) * 8  =>  world_x - world_y = screen_x / 8
-	# screen_y = (world_x + world_y) * 4  =>  world_x + world_y = screen_y / 4
-	# Adding: 2 * world_x = screen_x/8 + screen_y/4
-	# world_x = screen_x/16 + screen_y/8
-	# world_y = screen_y/8 - screen_x/16
 	var result_world_x: float = screen_dir.x / 16.0 + screen_dir.y / 8.0
 	var result_world_y: float = screen_dir.y / 8.0 - screen_dir.x / 16.0
 	

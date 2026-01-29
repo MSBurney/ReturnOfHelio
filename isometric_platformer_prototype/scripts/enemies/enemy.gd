@@ -21,13 +21,21 @@ var level: Node = null
 func _ready() -> void:
 	add_to_group("enemies")
 	
-	# Find level in parent hierarchy
-	level = get_parent()
-	while level and not level.has_method("get_tile_height_at"):
-		level = level.get_parent()
+	level = _find_level()
 	
 	_setup_placeholder_sprites()
 	_update_screen_position()
+
+func _find_level() -> Node:
+	var node := get_parent()
+	while node and not node.has_method("get_tile_height_at"):
+		node = node.get_parent()
+	return node
+
+func _ground_height_at(x: float, y: float) -> float:
+	if level and level.has_method("get_tile_height_at"):
+		return level.get_tile_height_at(x, y)
+	return 0.0
 
 func _setup_placeholder_sprites() -> void:
 	# Create enemy sprite (spiky ball)
@@ -81,38 +89,33 @@ func _update_screen_position() -> void:
 	
 	# Update shadow
 	if shadow:
-		var ground_height: float = 0.0
-		if level and level.has_method("get_tile_height_at"):
-			ground_height = level.get_tile_height_at(world_pos.x, world_pos.y)
-		
+		var ground_height: float = _ground_height_at(world_pos.x, world_pos.y)
 		var shadow_world_pos := Vector3(world_pos.x, world_pos.y, ground_height)
 		shadow.global_position = IsoUtils.world_to_screen(shadow_world_pos)
 		shadow.z_index = z_index - 1
 		
-		# Fade based on height
 		var height_diff: float = world_pos.z - ground_height
 		shadow.modulate.a = clampf(1.0 - (height_diff / 48.0), 0.2, 0.5)
 
 func _update_depth_sort() -> void:
 	z_index = int(IsoUtils.get_depth_sort(world_pos) * 10)
 
-# Called by level to set initial position
 func setup(tile_x: int, tile_y: int, ground_height: float) -> void:
+	# Called by level to set initial position
 	base_z = ground_height + float_height
 	world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, base_z)
 	bob_time = randf() * TAU  # Random starting phase
 	_update_screen_position()
 	_update_depth_sort()
 
-# Public getter for homing attack targeting
 func get_world_pos() -> Vector3:
+	# Public getter for homing attack targeting
 	return world_pos
 
-# Called when hit by player
 func take_damage(_amount: int) -> void:
-	# Simple death - just remove
+	# Called when hit by player
 	queue_free()
 
-# Called when player jumps on enemy
 func stomp() -> void:
+	# Called when player jumps on enemy
 	queue_free()

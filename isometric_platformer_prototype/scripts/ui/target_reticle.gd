@@ -20,6 +20,7 @@ func _setup_placeholder_sprite() -> void:
 		var size: int = 18
 		var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 		var center: float = size / 2.0
+		var color := Color(1.0, 0.8, 0.0, 0.9)
 		
 		for y in range(size):
 			for x in range(size):
@@ -27,31 +28,29 @@ func _setup_placeholder_sprite() -> void:
 				var dy: float = y - center + 0.5
 				var dist: float = sqrt(dx * dx + dy * dy)
 				
-				# Outer ring
 				if dist >= 6.0 and dist <= 8.0:
-					img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
-				# Inner crosshair
+					img.set_pixel(x, y, color)
 				elif dist <= 7.0:
 					if (x == int(center) or y == int(center)) and dist >= 2.0:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
-				# Corner brackets
+						img.set_pixel(x, y, color)
+				
 				if (x <= 3 or x >= size - 4) and (y <= 3 or y >= size - 4):
 					if x <= 3 and y <= 1:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
+						img.set_pixel(x, y, color)
 					elif x <= 1 and y <= 3:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
+						img.set_pixel(x, y, color)
 					elif x >= size - 4 and y <= 1:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
+						img.set_pixel(x, y, color)
 					elif x >= size - 2 and y <= 3:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
+						img.set_pixel(x, y, color)
 					elif x <= 3 and y >= size - 2:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
+						img.set_pixel(x, y, color)
 					elif x <= 1 and y >= size - 4:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
+						img.set_pixel(x, y, color)
 					elif x >= size - 4 and y >= size - 2:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
+						img.set_pixel(x, y, color)
 					elif x >= size - 2 and y >= size - 4:
-						img.set_pixel(x, y, Color(1.0, 0.8, 0.0, 0.9))
+						img.set_pixel(x, y, color)
 		
 		var tex := ImageTexture.create_from_image(img)
 		sprite.texture = tex

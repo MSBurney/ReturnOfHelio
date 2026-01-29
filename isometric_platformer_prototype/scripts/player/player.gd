@@ -38,12 +38,24 @@ var level: Node = null
 
 func _ready() -> void:
 	# Find level in parent hierarchy
-	level = get_parent()
-	while level and not level.has_method("get_tile_height_at"):
-		level = level.get_parent()
+	level = _find_level()
 	
 	_setup_placeholder_sprites()
 	_update_screen_position()
+
+func _find_level() -> Node:
+	var node := get_parent()
+	while node and not node.has_method("get_tile_height_at"):
+		node = node.get_parent()
+	return node
+
+func _ground_height_at(x: float, y: float) -> float:
+	if level and level.has_method("get_tile_height_at"):
+		return level.get_tile_height_at(x, y)
+	return 0.0
+
+func _is_too_high(x: float, y: float) -> bool:
+	return _ground_height_at(x, y) > world_pos.z + max_step_height
 
 func _setup_placeholder_sprites() -> void:
 	# Create player sprite (simple colored ball)
@@ -108,26 +120,21 @@ func _process_movement(delta: float) -> void:
 	
 	# Wall collision
 	if level and level.has_method("get_tile_height_at"):
-		var new_ground_x: float = level.get_tile_height_at(new_x, world_pos.y)
-		if new_ground_x > world_pos.z + max_step_height:
+		if _is_too_high(new_x, world_pos.y):
 			new_x = world_pos.x
 			horizontal_velocity.x = 0.0
 		
-		var new_ground_y: float = level.get_tile_height_at(world_pos.x, new_y)
-		if new_ground_y > world_pos.z + max_step_height:
+		if _is_too_high(world_pos.x, new_y):
 			new_y = world_pos.y
 			horizontal_velocity.y = 0.0
 		
-		var new_ground_xy: float = level.get_tile_height_at(new_x, new_y)
-		if new_ground_xy > world_pos.z + max_step_height:
+		if _is_too_high(new_x, new_y):
 			if new_x != world_pos.x and new_y != world_pos.y:
-				var ground_x_only: float = level.get_tile_height_at(new_x, world_pos.y)
-				if ground_x_only <= world_pos.z + max_step_height:
+				if not _is_too_high(new_x, world_pos.y):
 					new_y = world_pos.y
 					horizontal_velocity.y = 0.0
 				else:
-					var ground_y_only: float = level.get_tile_height_at(world_pos.x, new_y)
-					if ground_y_only <= world_pos.z + max_step_height:
+					if not _is_too_high(world_pos.x, new_y):
 						new_x = world_pos.x
 						horizontal_velocity.x = 0.0
 					else:
@@ -247,7 +254,6 @@ func _check_enemy_stomp() -> void:
 		return
 	
 	var enemies := get_tree().get_nodes_in_group("enemies")
-	var my_screen_pos := IsoUtils.world_to_screen(world_pos)
 	
 	for enemy in enemies:
 		if not is_instance_valid(enemy):
@@ -282,9 +288,7 @@ func _update_collision() -> void:
 	if is_homing:
 		return
 	
-	var ground_height: float = 0.0
-	if level and level.has_method("get_tile_height_at"):
-		ground_height = level.get_tile_height_at(world_pos.x, world_pos.y)
+	var ground_height: float = _ground_height_at(world_pos.x, world_pos.y)
 	
 	if world_pos.z <= ground_height:
 		world_pos.z = ground_height
@@ -298,10 +302,7 @@ func _update_screen_position() -> void:
 	position = IsoUtils.world_to_screen(world_pos)
 	
 	if shadow:
-		var ground_height: float = 0.0
-		if level and level.has_method("get_tile_height_at"):
-			ground_height = level.get_tile_height_at(world_pos.x, world_pos.y)
-		
+		var ground_height: float = _ground_height_at(world_pos.x, world_pos.y)
 		var shadow_world_pos := Vector3(world_pos.x, world_pos.y, ground_height)
 		var shadow_screen_pos := IsoUtils.world_to_screen(shadow_world_pos)
 		shadow.global_position = shadow_screen_pos

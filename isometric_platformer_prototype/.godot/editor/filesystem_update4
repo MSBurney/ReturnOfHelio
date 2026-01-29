@@ -1,0 +1,6 @@
+res://scripts/enemies/enemy.gd
+res://scripts/level/iso_tile.gd
+res://scripts/level/test_level.gd
+res://scripts/utils/iso_utils.gd
+res://scripts/player/player.gd
+res://scripts/ui/target_reticle.gd

@@ -46,35 +46,8 @@ func _draw() -> void:
 	
 	# Draw side faces if tile has height
 	if tile_height > 0:
-		# Left side face
-		var left_side := PackedVector2Array([
-			Vector2(-half_w, 0),
-			Vector2(0, half_h),
-			Vector2(0, half_h + tile_height),
-			Vector2(-half_w, tile_height)
-		])
-		# Offset for height in draw coordinates (we're drawing at the elevated position)
-		# Actually the tile is already positioned at height, so side goes DOWN
-		left_side = PackedVector2Array([
-			Vector2(-half_w, 0),
-			Vector2(0, half_h),
-			Vector2(0, half_h),      # Will extend down
-			Vector2(-half_w, 0)
-		])
-		
-		# Right side face
-		var right_side := PackedVector2Array([
-			Vector2(0, half_h),
-			Vector2(half_w, 0),
-			Vector2(half_w, 0),
-			Vector2(0, half_h)
-		])
-		
-		# For elevated tiles, we draw the side faces extending downward
-		# The side height equals tile_height in screen pixels
 		var side_h := tile_height
-		
-		left_side = PackedVector2Array([
+		var left_side := PackedVector2Array([
 			Vector2(-half_w, 0),
 			Vector2(0, half_h),
 			Vector2(0, half_h + side_h),
@@ -82,7 +55,7 @@ func _draw() -> void:
 		])
 		draw_colored_polygon(left_side, side_color)
 		
-		right_side = PackedVector2Array([
+		var right_side := PackedVector2Array([
 			Vector2(0, half_h),
 			Vector2(half_w, 0),
 			Vector2(half_w, side_h),
