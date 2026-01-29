@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://enemy001"]
+[gd_scene load_steps=3 format=3 uid="uid://enemy001"]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy.gd" id="1_enemy"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox.gd" id="2_hurtbox"]
 
 [node name="Enemy" type="Node2D"]
 script = ExtResource("1_enemy")
@@ -10,3 +11,6 @@ modulate = Color(0, 0, 0, 0.5)
 z_index = -1
 
 [node name="Sprite" type="Sprite2D" parent="."]
+
+[node name="Hurtbox" type="Node2D" parent="."]
+script = ExtResource("2_hurtbox")

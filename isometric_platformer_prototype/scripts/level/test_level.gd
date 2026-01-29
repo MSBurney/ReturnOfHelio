@@ -3,10 +3,11 @@ extends Node2D
 
 const IsoTileScript := preload("res://scripts/level/iso_tile.gd")
 const EnemyScene := preload("res://scenes/enemies/enemy.tscn")
+const PlayerScene := preload("res://scenes/player/player.tscn")
 
 # Level dimensions (in tiles)
-@export var level_width: int = 16
-@export var level_height: int = 16
+@export var level_width: int = 48
+@export var level_height: int = 48
 
 # Tile colors (Snake: Rattle n' Roll style green)
 @export var grass_color_a: Color = Color(0.18, 0.55, 0.18)
@@ -20,6 +21,7 @@ var height_map: Dictionary = {}
 @onready var enemy_container: Node2D = $Enemies
 @onready var player: Node2D = $Player
 @onready var camera: Camera2D = $Camera2D
+var player2: Node2D = null
 
 func _ready() -> void:
 	_generate_height_map()
@@ -37,20 +39,38 @@ func _generate_height_map() -> void:
 			# Center raised area
 			if x >= 6 and x <= 9 and y >= 6 and y <= 9:
 				height = 16.0
+			if x >= 18 and x <= 24 and y >= 18 and y <= 24:
+				height = 16.0
+			if x >= 28 and x <= 36 and y >= 6 and y <= 10:
+				height = 12.0
+			if x >= 6 and x <= 12 and y >= 28 and y <= 34:
+				height = 12.0
 			
 			# Stepped platforms on the right
 			if x >= 12 and x <= 14 and y >= 2 and y <= 5:
 				height = 8.0
 			if x >= 13 and x <= 14 and y >= 3 and y <= 4:
 				height = 16.0
+			if x >= 38 and x <= 42 and y >= 8 and y <= 12:
+				height = 8.0
+			if x >= 40 and x <= 42 and y >= 9 and y <= 11:
+				height = 16.0
 			
 			# Lower area (pit/water level simulation)
 			if x >= 2 and x <= 4 and y >= 10 and y <= 13:
+				height = -8.0
+			if x >= 20 and x <= 24 and y >= 34 and y <= 38:
+				height = -8.0
+			if x >= 32 and x <= 36 and y >= 30 and y <= 36:
 				height = -8.0
 			
 			# Ramp-like structure (stepped)
 			if x >= 10 and y >= 10 and y <= 12:
 				height = (x - 10) * 4.0
+			if x >= 24 and y >= 12 and y <= 14:
+				height = (x - 24) * 3.0
+			if x >= 10 and x <= 16 and y >= 20 and y <= 22:
+				height = (y - 20) * 4.0
 			
 			height_map[Vector2i(x, y)] = height
 
@@ -86,6 +106,17 @@ func _setup_player() -> void:
 		var start_tile := Vector2i(3, 3)
 		var start_height: float = float(height_map.get(start_tile, 0.0))
 		player.set_world_pos(Vector3(start_tile.x + 0.5, start_tile.y + 0.5, start_height))
+		if player.has_method("set"):
+			player.set("player_id", 1)
+	
+	# Spawn player 2 nearby
+	var p2_tile := Vector2i(4, 3)
+	var p2_height: float = float(height_map.get(p2_tile, 0.0))
+	player2 = PlayerScene.instantiate()
+	if player2.has_method("set"):
+		player2.set("player_id", 2)
+	add_child(player2)
+	player2.set_world_pos(Vector3(p2_tile.x + 0.5, p2_tile.y + 0.5, p2_height))
 
 func _spawn_enemies() -> void:
 	# Spawn three test enemies at different locations
@@ -93,6 +124,10 @@ func _spawn_enemies() -> void:
 		Vector2i(6, 4),   # Near the center platform
 		Vector2i(8, 8),   # On the center platform
 		Vector2i(12, 3),  # Near the stepped platforms
+		Vector2i(22, 22), # Large center platform
+		Vector2i(30, 8),  # Right platform
+		Vector2i(10, 30), # Upper left platform
+		Vector2i(40, 10), # Far right stepped area
 	]
 	
 	for pos in enemy_positions:
@@ -104,7 +139,10 @@ func _spawn_enemies() -> void:
 func _process(_delta: float) -> void:
 	# Camera follows player
 	if camera and player:
-		camera.position = player.position
+		if player2:
+			camera.position = (player.position + player2.position) * 0.5
+		else:
+			camera.position = player.position
 
 # Returns the tile height at a given world x, y position
 func get_tile_height_at(world_x: float, world_y: float) -> float:
@@ -122,3 +160,8 @@ func get_tile_height_at(world_x: float, world_y: float) -> float:
 func is_solid_at(world_pos: Vector3) -> bool:
 	var ground_height := get_tile_height_at(world_pos.x, world_pos.y)
 	return world_pos.z <= ground_height
+
+# Helper for player movement: returns true if the step is too high to climb
+func is_step_blocked(world_x: float, world_y: float, current_z: float, max_step: float) -> bool:
+	var ground_height := get_tile_height_at(world_x, world_y)
+	return ground_height > current_z + max_step

@@ -1,41 +1,35 @@
 class_name Enemy
-extends Node2D
+extends IsoEntity
 
 # Enemy properties
 @export var float_height: float = 16.0  # Height above ground
 @export var bob_amplitude: float = 2.0  # Vertical bob amount
 @export var bob_speed: float = 2.0  # Bob cycle speed
+@export var max_hp: int = 3
 
-# World position
-var world_pos: Vector3 = Vector3.ZERO
+# AI properties
+@export var patrol_distance: float = 4.0  # Tiles/world units
+@export var patrol_speed: float = 1.5
+@export var chase_range: float = 3.0
+@export var chase_speed: float = 2.0
+
 var base_z: float = 0.0  # Ground level + float_height
 var bob_time: float = 0.0
+var hp: int = 0
+var patrol_origin: Vector2 = Vector2.ZERO
+var patrol_forward: bool = true
 
 # References
 @onready var sprite: Sprite2D = $Sprite
 @onready var shadow: Sprite2D = $Shadow
 
-# Level reference
-var level: Node = null
-
 func _ready() -> void:
+	super._ready()
 	add_to_group("enemies")
-	
-	level = _find_level()
 	
 	_setup_placeholder_sprites()
 	_update_screen_position()
-
-func _find_level() -> Node:
-	var node := get_parent()
-	while node and not node.has_method("get_tile_height_at"):
-		node = node.get_parent()
-	return node
-
-func _ground_height_at(x: float, y: float) -> float:
-	if level and level.has_method("get_tile_height_at"):
-		return level.get_tile_height_at(x, y)
-	return 0.0
+	hp = max_hp
 
 func _setup_placeholder_sprites() -> void:
 	# Create enemy sprite (spiky ball)
@@ -78,6 +72,9 @@ func _setup_placeholder_sprites() -> void:
 
 func _process(delta: float) -> void:
 	# Bob up and down
+	_update_ai(delta)
+	var ground_height := _ground_height_at(world_pos.x, world_pos.y)
+	base_z = ground_height + float_height
 	bob_time += delta * bob_speed
 	world_pos.z = base_z + sin(bob_time) * bob_amplitude
 	
@@ -85,37 +82,80 @@ func _process(delta: float) -> void:
 	_update_depth_sort()
 
 func _update_screen_position() -> void:
-	position = IsoUtils.world_to_screen(world_pos)
-	
+	super._update_screen_position()
 	# Update shadow
-	if shadow:
-		var ground_height: float = _ground_height_at(world_pos.x, world_pos.y)
-		var shadow_world_pos := Vector3(world_pos.x, world_pos.y, ground_height)
-		shadow.global_position = IsoUtils.world_to_screen(shadow_world_pos)
-		shadow.z_index = z_index - 1
-		
-		var height_diff: float = world_pos.z - ground_height
-		shadow.modulate.a = clampf(1.0 - (height_diff / 48.0), 0.2, 0.5)
+	_update_shadow(shadow, 48.0, 0.2, 0.5, 1.0, 1.0)
 
 func _update_depth_sort() -> void:
-	z_index = int(IsoUtils.get_depth_sort(world_pos) * 10)
+	super._update_depth_sort()
 
 func setup(tile_x: int, tile_y: int, ground_height: float) -> void:
 	# Called by level to set initial position
 	base_z = ground_height + float_height
 	world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, base_z)
+	patrol_origin = Vector2(world_pos.x, world_pos.y)
 	bob_time = randf() * TAU  # Random starting phase
 	_update_screen_position()
 	_update_depth_sort()
 
-func get_world_pos() -> Vector3:
-	# Public getter for homing attack targeting
-	return world_pos
-
 func take_damage(_amount: int) -> void:
 	# Called when hit by player
-	queue_free()
+	hp -= _amount
+	if hp <= 0:
+		queue_free()
 
 func stomp() -> void:
 	# Called when player jumps on enemy
-	queue_free()
+	take_damage(1)
+
+func _update_ai(delta: float) -> void:
+	var player := _find_chase_target()
+	if player:
+		_chase_player(player, delta)
+	else:
+		_patrol(delta)
+
+func _find_chase_target() -> Node2D:
+	var players := get_tree().get_nodes_in_group("players")
+	var nearest: Node2D = null
+	var nearest_dist := chase_range
+	var my_ground := _ground_height_at(world_pos.x, world_pos.y)
+	
+	for p in players:
+		if not is_instance_valid(p):
+			continue
+		if not p.has_method("get_world_pos"):
+			continue
+		var p_pos: Vector3 = p.get_world_pos()
+		var p_ground := _ground_height_at(p_pos.x, p_pos.y)
+		if absf(p_ground - my_ground) > 0.1:
+			continue
+		var dist := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y).length()
+		if dist <= nearest_dist:
+			nearest_dist = dist
+			nearest = p
+	
+	return nearest
+
+func _chase_player(player: Node2D, delta: float) -> void:
+	var p_pos: Vector3 = player.get_world_pos()
+	var to_player := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y)
+	if to_player.length_squared() == 0.0:
+		return
+	var dir := to_player.normalized()
+	var move := dir * chase_speed * delta
+	world_pos.x += move.x
+	world_pos.y += move.y
+
+func _patrol(delta: float) -> void:
+	var patrol_min := patrol_origin.x - patrol_distance
+	var patrol_max := patrol_origin.x + patrol_distance
+	var dir := 1.0 if patrol_forward else -1.0
+	world_pos.x += dir * patrol_speed * delta
+	
+	if world_pos.x >= patrol_max:
+		world_pos.x = patrol_max
+		patrol_forward = false
+	elif world_pos.x <= patrol_min:
+		world_pos.x = patrol_min
+		patrol_forward = true
