@@ -28,6 +28,8 @@ var height_map: Dictionary = {}
 @onready var boss_container: Node2D = $Bosses
 @onready var marker_container: Node2D = $Markers
 @onready var pickup_label: Label = $UI/PickupLabel
+@onready var pause_menu: CanvasLayer = $UI/PauseMenu
+@onready var end_screen: CanvasLayer = $UI/EndScreen
 @onready var player: Node2D = $Player
 @onready var camera: Camera2D = $Camera2D
 var player2: Node2D = null
@@ -41,7 +43,7 @@ var total_pickups: int = 0
 var level_complete: bool = false
 
 # Goal/loop tuning
-@export var goal_tile: Vector2i = Vector2i(22, 26)
+@export var goal_tile: Vector2i = Vector2i(12, 12)
 @export var required_pickups: int = 3
 
 # Co-op tether
@@ -56,6 +58,7 @@ func _ready() -> void:
 	_spawn_pickups()
 	_spawn_boss()
 	_spawn_markers()
+	_update_pickup_label()
 	_update_pickup_label()
 
 func _generate_height_map() -> void:
@@ -141,14 +144,16 @@ func _setup_player() -> void:
 		if player.has_method("set"):
 			player.set("player_id", 1)
 	
-	# Spawn player 2 nearby
-	var p2_tile := Vector2i(4, 3)
-	var p2_height: float = float(height_map.get(p2_tile, 0.0))
-	player2 = PlayerScene.instantiate()
-	if player2.has_method("set"):
-		player2.set("player_id", 2)
-	add_child(player2)
-	player2.set_world_pos(Vector3(p2_tile.x + 0.5, p2_tile.y + 0.5, p2_height))
+	var player_count: int = GameState.player_count
+	if player_count >= 2:
+		# Spawn player 2 nearby
+		var p2_tile := Vector2i(4, 3)
+		var p2_height: float = float(height_map.get(p2_tile, 0.0))
+		player2 = PlayerScene.instantiate()
+		if player2.has_method("set"):
+			player2.set("player_id", 2)
+		add_child(player2)
+		player2.set_world_pos(Vector3(p2_tile.x + 0.5, p2_tile.y + 0.5, p2_height))
 
 func _spawn_enemies() -> void:
 	# Spawn three test enemies at different locations
@@ -191,7 +196,6 @@ func _spawn_pickups() -> void:
 	total_pickups = 0
 	
 	var pickup_positions: Array[Vector2i] = [
-		Vector2i(5, 5),
 		Vector2i(10, 8),
 		Vector2i(20, 20),
 		Vector2i(30, 18),
@@ -248,12 +252,9 @@ func _check_goal() -> void:
 	var p2_pos: Vector3 = player2.get_world_pos() if player2 else p1_pos
 	if Vector2(p1_pos.x, p1_pos.y).distance_to(goal_pos) <= 1.0 and Vector2(p2_pos.x, p2_pos.y).distance_to(goal_pos) <= 1.5:
 		level_complete = true
-		print("Level complete!")
-		_spawn_pickups()
-		_respawn_player(player, Vector2i(3, 3))
-		if player2:
-			_respawn_player(player2, Vector2i(4, 3))
-		level_complete = false
+		if end_screen and end_screen.has_method("show_menu"):
+			get_tree().paused = true
+			end_screen.show_menu()
 
 func _spawn_markers() -> void:
 	if not marker_container:
@@ -271,8 +272,8 @@ func _spawn_markers() -> void:
 	var goal_height: float = float(height_map.get(goal_tile, 0.0))
 	gate_marker = GateMarkerScene.instantiate()
 	marker_container.add_child(gate_marker)
-	gate_marker.position = IsoUtils.world_to_screen(Vector3(goal_tile.x + 0.5, goal_tile.y + 0.5, goal_height + 6.0))
-	gate_marker.z_index = 200
+	gate_marker.position = IsoUtils.world_to_screen(Vector3(goal_tile.x + 0.5, goal_tile.y + 0.5, goal_height + 12.0))
+	gate_marker.z_index = 600
 	_update_gate_active(false)
 
 func _update_gate_active(active: bool) -> void:
@@ -336,6 +337,12 @@ func _process(_delta: float) -> void:
 	_check_player_fall(player, Vector2i(3, 3))
 	if player2:
 		_check_player_fall(player2, Vector2i(4, 3))
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and not get_tree().paused:
+		if pause_menu and pause_menu.has_method("show_menu"):
+			get_tree().paused = true
+			pause_menu.show_menu()
 
 # Returns the tile height at a given world x, y position
 func get_tile_height_at(world_x: float, world_y: float) -> float:

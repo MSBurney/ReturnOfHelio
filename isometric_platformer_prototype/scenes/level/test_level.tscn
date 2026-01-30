@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=3 uid="uid://testlevel001"]
+[gd_scene load_steps=5 format=3 uid="uid://testlevel001"]
 
 [ext_resource type="Script" uid="uid://b5tjdx4jmmrhd" path="res://scripts/level/test_level.gd" id="1_level"]
 [ext_resource type="PackedScene" uid="uid://player001" path="res://scenes/player/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://pausemenu001" path="res://scenes/ui/pause_menu.tscn" id="3_pause"]
+[ext_resource type="PackedScene" uid="uid://endscreen001" path="res://scenes/ui/end_screen.tscn" id="4_end"]
 
 [node name="TestLevel" type="Node2D"]
 script = ExtResource("1_level")
@@ -36,3 +38,7 @@ offset_top = 6.0
 offset_right = 300.0
 offset_bottom = 24.0
 text = "Pickups: 0 / 0"
+
+[node name="PauseMenu" parent="UI" instance=ExtResource("3_pause")]
+
+[node name="EndScreen" parent="UI" instance=ExtResource("4_end")]

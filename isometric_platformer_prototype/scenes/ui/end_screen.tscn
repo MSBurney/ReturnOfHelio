@@ -1,0 +1,40 @@
+[gd_scene load_steps=2 format=3 uid="uid://endscreen001"]
+
+[ext_resource type="Script" path="res://scripts/ui/end_screen.gd" id="1_end"]
+
+[node name="EndScreen" type="CanvasLayer"]
+script = ExtResource("1_end")
+
+[node name="Panel" type="Panel" parent="."]
+anchor_left = 0.32
+anchor_top = 0.25
+anchor_right = 0.68
+anchor_bottom = 0.65
+
+[node name="Title" type="Label" parent="Panel"]
+anchor_left = 0.5
+anchor_top = 0.1
+anchor_right = 0.5
+anchor_bottom = 0.1
+offset_left = -80.0
+offset_top = -8.0
+offset_right = 80.0
+offset_bottom = 12.0
+text = "End of Game"
+horizontal_alignment = 1
+
+[node name="Menu" type="VBoxContainer" parent="Panel"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -80.0
+offset_top = -8.0
+offset_right = 80.0
+offset_bottom = 36.0
+
+[node name="Restart" type="Label" parent="Panel/Menu"]
+text = "Restart Game"
+
+[node name="MainMenu" type="Label" parent="Panel/Menu"]
+text = "Main Menu"

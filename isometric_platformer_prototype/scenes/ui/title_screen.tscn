@@ -1,0 +1,39 @@
+[gd_scene load_steps=2 format=3 uid="uid://bnnb3sfsxh3xs"]
+
+[ext_resource type="Script" path="res://scripts/ui/title_screen.gd" id="1_title"]
+
+[node name="TitleScreen" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_title")
+
+[node name="Title" type="Label" parent="."]
+anchor_left = 0.5
+anchor_top = 0.2
+anchor_right = 0.5
+anchor_bottom = 0.2
+offset_left = -120.0
+offset_top = -10.0
+offset_right = 120.0
+offset_bottom = 20.0
+text = "Return of Helio"
+horizontal_alignment = 1
+
+[node name="Menu" type="VBoxContainer" parent="."]
+anchor_left = 0.5
+anchor_top = 0.4
+anchor_right = 0.5
+anchor_bottom = 0.4
+offset_left = -80.0
+offset_top = -10.0
+offset_right = 80.0
+offset_bottom = 70.0
+
+[node name="Option1" type="Label" parent="Menu"]
+text = "1P Start"
+
+[node name="Option2" type="Label" parent="Menu"]
+text = "2P Start"
+
+[node name="Option3" type="Label" parent="Menu"]
+text = "End Game"
