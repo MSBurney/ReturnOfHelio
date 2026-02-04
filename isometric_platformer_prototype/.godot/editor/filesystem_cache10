@@ -1,5 +1,5 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1769722702
+::res://::1770009000
 ::res://scenes/::1769645114
 ::res://scenes/enemies/::1769677744
 boss.tscn::PackedScene::2205691648::1769673579::0::1::::<><><>0<>0<><>::res://scripts/enemies/boss.gd<>res://scripts/combat/hurtbox.gd<>res://scripts/ui/health_bar.gd
