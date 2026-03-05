@@ -1,5 +1,8 @@
 # ISOMETRIC PLATFORMER - GAME DESIGN DOCUMENT
 ## Part 6: Story, Characters, and World Lore
+## Some parts of this document may be inaccurte or incomplete
+## For more thorough and accurate story info, refer to the below URL:
+	https://docs.google.com/document/d/1NjOxiojMmsCsuw2ImSEWrh8z-Fl3tSNjmd1fZ6fQ59A/edit?usp=sharing
 
 ---
 
@@ -148,7 +151,7 @@ The Godai are elemental deities, each consisting of an **Angel** and **Dragon** 
 
 **Role:** Demon Lord seeking to control Yaqar through the water supply  
 **Origin:** Shokokai, fictional country inspired by Japan  
-**Visual:** Imposing demonic figure, traditional Japanese-inspired armor
+**Visual:** Imposing demonic figure, looks like shrimp facing downward
 
 **Motivation:**
 - Control Lien → Control water → Control Yaqar
@@ -160,7 +163,7 @@ The Godai are elemental deities, each consisting of an **Angel** and **Dragon** 
 - Human collaborators and cultists
 - Wrath Demon mercenaries (Gaunt, Grapple, Happyday)
 
-### The Archangels (Secondary Antagonists)
+### Ku-R (Secondary Antagonists)
 
 **Role:** Angel faction that believes they should control the Godai  
 **Motivation:** Believe mortals (humans and dragons) are unfit to interact with divine beings
