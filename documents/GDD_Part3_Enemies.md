@@ -54,40 +54,40 @@ var current_health: int = max_health
 ```gdscript
 # Called by level to initialize position
 func setup(tile_x: int, tile_y: int, ground_height: float) -> void:
-    world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, ground_height + float_height)
+	world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, ground_height + float_height)
 
 # Called by player when hit
 func take_damage(amount: int) -> void:
-    current_health -= amount
-    if current_health <= 0:
-        _die()
-    else:
-        _on_hurt()
+	current_health -= amount
+	if current_health <= 0:
+		_die()
+	else:
+		_on_hurt()
 
 # Called when player stomps
 func stomp() -> void:
-    take_damage(1)
+	take_damage(1)
 
 # Public getter for targeting
 func get_world_pos() -> Vector3:
-    return world_pos
+	return world_pos
 ```
 
 ### Death Handling
 
 ```gdscript
 func _die() -> void:
-    # Spawn death particles
-    # Play death sound
-    # Award score
-    # Remove from scene
-    queue_free()
+	# Spawn death particles
+	# Play death sound
+	# Award score
+	# Remove from scene
+	queue_free()
 
 func _on_hurt() -> void:
-    # Flash white
-    # Play hurt sound
-    # Brief invincibility if multi-hit enemy
-    pass
+	# Flash white
+	# Play hurt sound
+	# Brief invincibility if multi-hit enemy
+	pass
 ```
 
 ---
@@ -189,17 +189,17 @@ var bob_time: float = 0.0
 var base_z: float = 0.0
 
 func _ready() -> void:
-    add_to_group("enemies")
-    bob_time = randf() * TAU  # Random starting phase
+	add_to_group("enemies")
+	bob_time = randf() * TAU  # Random starting phase
 
 func _process(delta: float) -> void:
-    bob_time += delta * bob_speed
-    world_pos.z = base_z + sin(bob_time) * bob_amplitude
-    _update_visual()
+	bob_time += delta * bob_speed
+	world_pos.z = base_z + sin(bob_time) * bob_amplitude
+	_update_visual()
 
 func setup(tile_x: int, tile_y: int, ground_height: float) -> void:
-    base_z = ground_height + float_height
-    world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, base_z)
+	base_z = ground_height + float_height
+	world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, base_z)
 ```
 
 ### Walker (Patrol)
@@ -217,25 +217,25 @@ var patrol_direction: int = 1
 var ground_height: float = 0.0
 
 func _ready() -> void:
-    add_to_group("enemies")
+	add_to_group("enemies")
 
 func setup(tile_x: int, tile_y: int, g_height: float) -> void:
-    ground_height = g_height
-    world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, ground_height)
-    patrol_start = Vector2(world_pos.x, world_pos.y)
-    patrol_end = patrol_start + Vector2(patrol_distance, 0)
+	ground_height = g_height
+	world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, ground_height)
+	patrol_start = Vector2(world_pos.x, world_pos.y)
+	patrol_end = patrol_start + Vector2(patrol_distance, 0)
 
 func _process(delta: float) -> void:
-    # Move along patrol route
-    world_pos.x += walk_speed * delta * patrol_direction / 100.0
-    
-    # Reverse at patrol bounds
-    if world_pos.x >= patrol_end.x:
-        patrol_direction = -1
-    elif world_pos.x <= patrol_start.x:
-        patrol_direction = 1
-    
-    _update_visual()
+	# Move along patrol route
+	world_pos.x += walk_speed * delta * patrol_direction / 100.0
+	
+	# Reverse at patrol bounds
+	if world_pos.x >= patrol_end.x:
+		patrol_direction = -1
+	elif world_pos.x <= patrol_start.x:
+		patrol_direction = 1
+	
+	_update_visual()
 ```
 
 ### Charger (Aggressive)
@@ -256,45 +256,45 @@ var recovery_timer: float = 0.0
 var player_ref: Node2D = null
 
 func _process(delta: float) -> void:
-    match state:
-        State.IDLE:
-            _check_for_player()
-        State.ALERT:
-            _prepare_charge()
-        State.CHARGING:
-            _do_charge(delta)
-        State.RECOVERING:
-            _recover(delta)
+	match state:
+		State.IDLE:
+			_check_for_player()
+		State.ALERT:
+			_prepare_charge()
+		State.CHARGING:
+			_do_charge(delta)
+		State.RECOVERING:
+			_recover(delta)
 
 func _check_for_player() -> void:
-    if player_ref == null:
-        player_ref = get_tree().get_first_node_in_group("player")
-    if player_ref == null:
-        return
-    
-    var my_screen := IsoUtils.world_to_screen(world_pos)
-    var player_screen := IsoUtils.world_to_screen(player_ref.get_world_pos())
-    
-    if my_screen.distance_to(player_screen) < detection_range:
-        state = State.ALERT
+	if player_ref == null:
+		player_ref = get_tree().get_first_node_in_group("player")
+	if player_ref == null:
+		return
+	
+	var my_screen := IsoUtils.world_to_screen(world_pos)
+	var player_screen := IsoUtils.world_to_screen(player_ref.get_world_pos())
+	
+	if my_screen.distance_to(player_screen) < detection_range:
+		state = State.ALERT
 
 func _prepare_charge() -> void:
-    # Flash/telegraph for 0.3 seconds
-    charge_direction = (player_ref.get_world_pos() - world_pos).normalized()
-    state = State.CHARGING
+	# Flash/telegraph for 0.3 seconds
+	charge_direction = (player_ref.get_world_pos() - world_pos).normalized()
+	state = State.CHARGING
 
 func _do_charge(delta: float) -> void:
-    world_pos += charge_direction * charge_speed * delta
-    
-    # Check if hit wall or traveled too far
-    # Then enter recovery
-    recovery_timer = recovery_time
-    state = State.RECOVERING
+	world_pos += charge_direction * charge_speed * delta
+	
+	# Check if hit wall or traveled too far
+	# Then enter recovery
+	recovery_timer = recovery_time
+	state = State.RECOVERING
 
 func _recover(delta: float) -> void:
-    recovery_timer -= delta
-    if recovery_timer <= 0:
-        state = State.IDLE
+	recovery_timer -= delta
+	if recovery_timer <= 0:
+		state = State.IDLE
 ```
 
 ### Shooter (Ranged)
@@ -310,26 +310,26 @@ var shoot_timer: float = 0.0
 var projectile_scene: PackedScene
 
 func _ready() -> void:
-    add_to_group("enemies")
-    projectile_scene = preload("res://scenes/enemies/projectile.tscn")
-    shoot_timer = shoot_interval
+	add_to_group("enemies")
+	projectile_scene = preload("res://scenes/enemies/projectile.tscn")
+	shoot_timer = shoot_interval
 
 func _process(delta: float) -> void:
-    shoot_timer -= delta
-    if shoot_timer <= 0:
-        _shoot()
-        shoot_timer = shoot_interval
+	shoot_timer -= delta
+	if shoot_timer <= 0:
+		_shoot()
+		shoot_timer = shoot_interval
 
 func _shoot() -> void:
-    var player := get_tree().get_first_node_in_group("player")
-    if player == null:
-        return
-    
-    var projectile := projectile_scene.instantiate()
-    get_parent().add_child(projectile)
-    
-    var direction := (player.get_world_pos() - world_pos).normalized()
-    projectile.setup(world_pos, direction, projectile_speed)
+	var player := get_tree().get_first_node_in_group("player")
+	if player == null:
+		return
+	
+	var projectile := projectile_scene.instantiate()
+	get_parent().add_child(projectile)
+	
+	var direction := (player.get_world_pos() - world_pos).normalized()
+	projectile.setup(world_pos, direction, projectile_speed)
 ```
 
 ---
@@ -353,30 +353,30 @@ var lifetime: float = 5.0
 
 ```gdscript
 func setup(start_pos: Vector3, dir: Vector3, spd: float) -> void:
-    world_pos = start_pos
-    direction = dir.normalized()
-    speed = spd
+	world_pos = start_pos
+	direction = dir.normalized()
+	speed = spd
 
 func _process(delta: float) -> void:
-    world_pos += direction * speed * delta
-    lifetime -= delta
-    
-    if lifetime <= 0:
-        queue_free()
-        return
-    
-    _update_visual()
-    _check_player_collision()
+	world_pos += direction * speed * delta
+	lifetime -= delta
+	
+	if lifetime <= 0:
+		queue_free()
+		return
+	
+	_update_visual()
+	_check_player_collision()
 
 func _check_player_collision() -> void:
-    var player := get_tree().get_first_node_in_group("player")
-    if player == null:
-        return
-    
-    var dist := world_pos.distance_to(player.get_world_pos())
-    if dist < 8.0:  # Hit radius
-        player.take_damage(damage)
-        queue_free()
+	var player := get_tree().get_first_node_in_group("player")
+	if player == null:
+		return
+	
+	var dist := world_pos.distance_to(player.get_world_pos())
+	if dist < 8.0:  # Hit radius
+		player.take_damage(damage)
+		queue_free()
 ```
 
 ---
@@ -412,35 +412,35 @@ signal phase_changed(new_phase: Phase)
 signal defeated
 
 func _ready() -> void:
-    current_health = phase_1_health
-    _start_phase(Phase.ONE)
+	current_health = phase_1_health
+	_start_phase(Phase.ONE)
 
 func take_damage(amount: int) -> void:
-    if not is_vulnerable:
-        return
-    
-    current_health -= amount
-    if current_health <= 0:
-        _advance_phase()
+	if not is_vulnerable:
+		return
+	
+	current_health -= amount
+	if current_health <= 0:
+		_advance_phase()
 
 func _advance_phase() -> void:
-    match current_phase:
-        Phase.ONE:
-            current_phase = Phase.TWO
-            current_health = phase_2_health
-            _start_phase(Phase.TWO)
-        Phase.TWO:
-            current_phase = Phase.THREE
-            current_health = phase_3_health
-            _start_phase(Phase.THREE)
-        Phase.THREE:
-            defeated.emit()
-            _die()
+	match current_phase:
+		Phase.ONE:
+			current_phase = Phase.TWO
+			current_health = phase_2_health
+			_start_phase(Phase.TWO)
+		Phase.TWO:
+			current_phase = Phase.THREE
+			current_health = phase_3_health
+			_start_phase(Phase.THREE)
+		Phase.THREE:
+			defeated.emit()
+			_die()
 
 func _start_phase(phase: Phase) -> void:
-    phase_changed.emit(phase)
-    is_vulnerable = false
-    # Override in subclass for phase-specific behavior
+	phase_changed.emit(phase)
+	is_vulnerable = false
+	# Override in subclass for phase-specific behavior
 ```
 
 ### Example Boss: World 1 - Giant Frog
@@ -455,34 +455,34 @@ var attack_timer: float = 0.0
 var current_attack: Attack
 
 func _start_phase(phase: Phase) -> void:
-    super._start_phase(phase)
-    
-    match phase:
-        Phase.ONE:
-            # Tongue attack only
-            _queue_attack(Attack.TONGUE_LASH)
-        Phase.TWO:
-            # Add belly flop
-            _queue_attack(Attack.BELLY_FLOP)
-        Phase.THREE:
-            # Add minion spawns
-            _queue_attack(Attack.SPAWN_HOPPERS)
+	super._start_phase(phase)
+	
+	match phase:
+		Phase.ONE:
+			# Tongue attack only
+			_queue_attack(Attack.TONGUE_LASH)
+		Phase.TWO:
+			# Add belly flop
+			_queue_attack(Attack.BELLY_FLOP)
+		Phase.THREE:
+			# Add minion spawns
+			_queue_attack(Attack.SPAWN_HOPPERS)
 
 func _execute_attack(attack: Attack) -> void:
-    match attack:
-        Attack.TONGUE_LASH:
-            # Extend tongue toward player
-            # Vulnerable after tongue retracts
-            pass
-        Attack.BELLY_FLOP:
-            # Jump high, crash down
-            # Creates shockwave
-            # Vulnerable while stunned
-            pass
-        Attack.SPAWN_HOPPERS:
-            # Spawn 3 Hopper enemies
-            # Vulnerable briefly during spawn
-            pass
+	match attack:
+		Attack.TONGUE_LASH:
+			# Extend tongue toward player
+			# Vulnerable after tongue retracts
+			pass
+		Attack.BELLY_FLOP:
+			# Jump high, crash down
+			# Creates shockwave
+			# Vulnerable while stunned
+			pass
+		Attack.SPAWN_HOPPERS:
+			# Spawn 3 Hopper enemies
+			# Vulnerable briefly during spawn
+			pass
 ```
 
 ---
@@ -495,9 +495,9 @@ Freeze game briefly on impactful hits:
 
 ```gdscript
 func _apply_hitstop(duration: float = 0.05) -> void:
-    Engine.time_scale = 0.0
-    await get_tree().create_timer(duration, true, false, true).timeout
-    Engine.time_scale = 1.0
+	Engine.time_scale = 0.0
+	await get_tree().create_timer(duration, true, false, true).timeout
+	Engine.time_scale = 1.0
 ```
 
 ### Screen Shake
@@ -505,34 +505,34 @@ func _apply_hitstop(duration: float = 0.05) -> void:
 ```gdscript
 # In camera or game manager
 func shake(intensity: float = 4.0, duration: float = 0.2) -> void:
-    var tween := create_tween()
-    for i in range(int(duration / 0.02)):
-        var offset := Vector2(
-            randf_range(-intensity, intensity),
-            randf_range(-intensity, intensity)
-        )
-        tween.tween_property(self, "offset", offset, 0.02)
-    tween.tween_property(self, "offset", Vector2.ZERO, 0.02)
+	var tween := create_tween()
+	for i in range(int(duration / 0.02)):
+		var offset := Vector2(
+			randf_range(-intensity, intensity),
+			randf_range(-intensity, intensity)
+		)
+		tween.tween_property(self, "offset", offset, 0.02)
+	tween.tween_property(self, "offset", Vector2.ZERO, 0.02)
 ```
 
 ### Death Particles
 
 ```gdscript
 func _spawn_death_particles() -> void:
-    var particles := preload("res://scenes/effects/enemy_death.tscn").instantiate()
-    particles.global_position = global_position
-    get_parent().add_child(particles)
-    particles.emitting = true
+	var particles := preload("res://scenes/effects/enemy_death.tscn").instantiate()
+	particles.global_position = global_position
+	get_parent().add_child(particles)
+	particles.emitting = true
 ```
 
 ### Flash on Hit
 
 ```gdscript
 func _flash_white() -> void:
-    var tween := create_tween()
-    tween.tween_property(sprite, "modulate", Color.WHITE, 0.0)
-    tween.tween_property(sprite, "modulate", Color(2, 2, 2), 0.05)
-    tween.tween_property(sprite, "modulate", Color.WHITE, 0.1)
+	var tween := create_tween()
+	tween.tween_property(sprite, "modulate", Color.WHITE, 0.0)
+	tween.tween_property(sprite, "modulate", Color(2, 2, 2), 0.05)
+	tween.tween_property(sprite, "modulate", Color.WHITE, 0.1)
 ```
 
 ---

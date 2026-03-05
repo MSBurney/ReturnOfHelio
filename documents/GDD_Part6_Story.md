@@ -14,7 +14,7 @@
 
 ### Central Conflict
 
-A **global water crisis** threatens Yaqar. The **Godai** — five elemental serpent deities (Water, Fire, Ice, Wind, Stone) — have been imprisoned or scattered. **Lien**, the young Water Godai, must be returned to her temple to restore the world's water.
+A **global water crisis** threatens Yaqar. The **Godai** — five elemental serpent deities (Space, Fire, Ice, Wind, Stone) — have been imprisoned or scattered. **Lien**, the young Water Godai, must be returned to her temple to restore the world's water.
 
 Two factions seek to capture Lien for their own ends:
 - **Demons** led by **Lord Tempura** — seek to control the water supply and rule Yaqar
@@ -111,7 +111,7 @@ Two factions seek to capture Lien for their own ends:
 The Godai are elemental deities, each consisting of an **Angel** and **Dragon** pair that merge to form one being.
 
 ### Lien — Water Godai
-- **Angel:** Unknown (Lien is unique — half-Angel herself)
+- **Angel:** N/A (Lien is unique — half-Angel and half-Dragon herself)
 - **Dragon:** Lien's dragon form
 - **Status:** Free but weakened, traveling with Helio and Anigi
 - **Goal:** Return to her temple to restore global water
@@ -147,7 +147,7 @@ The Godai are elemental deities, each consisting of an **Angel** and **Dragon** 
 ### Lord Tempura (Primary Antagonist)
 
 **Role:** Demon Lord seeking to control Yaqar through the water supply  
-**Origin:** Unnamed country inspired by Japan  
+**Origin:** Shokokai, fictional country inspired by Japan  
 **Visual:** Imposing demonic figure, traditional Japanese-inspired armor
 
 **Motivation:**
@@ -375,7 +375,7 @@ substance in Yaqar."
 
 ### Gemcraft System
 
-The magic system of Yaqar — only beings born on Gem-bearing planets can use it.
+The magic system of Yaqar.
 
 **Gem Types:**
 - **Fire Gems** — Flame attacks, Burning Bush transformation
