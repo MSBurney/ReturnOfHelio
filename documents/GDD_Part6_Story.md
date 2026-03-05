@@ -123,25 +123,25 @@ The Godai are elemental deities, each consisting of an **Angel** and **Dragon** 
 - **Angel:** Nobu (intense, passionate, fierce sense of justice, Lien's father)
 - **Dragon:** Quadamr (mild-mannered, calm)
 - **Status:** Imprisoned
-- **Region:** Volcanic region (World 4)
+- **Region:** Rat Kingdom, Lanna-Dara
 
 ### Hyōri — Ice Godai
 - **Angel:** Mìyuè (poised, serene, smokes when alone, Lien's mother)
 - **Dragon:** Penemue (compassionate, affectionate, coils around loved ones)
 - **Status:** Imprisoned
-- **Region:** Frozen region (World 5)
+- **Region:** Lalibos Highlands, Lalibos
 
 ### Fūze — Wind Godai
 - **Angel:** Langit (whimsical, restless, talks fast, repeats words)
 - **Dragon:** Ariel (stable, deliberate, loves freedom)
 - **Status:** Imprisoned
-- **Region:** Sky region (World 6)
+- **Region:** Sadiran Desert
 
 ### Chi-Tsu — Stone Godai
 - **Angel:** Dharan (stoic, patient, rarely speaks, protective)
 - **Dragon:** Quagon (talkative, surprisingly enthusiastic)
 - **Status:** Imprisoned
-- **Region:** Mountain/underground region (World 7)
+- **Region:** Lutetia, capital of Aurelia
 
 ---
 
@@ -163,7 +163,14 @@ The Godai are elemental deities, each consisting of an **Angel** and **Dragon** 
 - Human collaborators and cultists
 - Wrath Demon mercenaries (Gaunt, Grapple, Happyday)
 
-### Ku-R (Secondary Antagonists)
+### Ku-Ra (Secondary Antagonists)
+
+**Role:** Former leader of the Godai, was cut into pieces but the pieces were self-aware
+**Motivation:** Believes he can watch over the world better than the Angels in charge.
+	He is waiting for someone to reunite all of his pices together so he can literally pull himself 
+	together and create black holes to suck in anyone who gets in his way ever again.
+
+### Silver Army (Secondary Antagonists)
 
 **Role:** Angel faction that believes they should control the Godai  
 **Motivation:** Believe mortals (humans and dragons) are unfit to interact with divine beings
