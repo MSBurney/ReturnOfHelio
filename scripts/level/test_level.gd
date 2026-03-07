@@ -7,6 +7,7 @@ const PlayerScene := preload("res://scenes/player/player.tscn")
 const PickupScene := preload("res://scenes/level/pickup.tscn")
 const BossScene := preload("res://scenes/enemies/boss.tscn")
 const GroundEnemyScene := preload("res://scenes/enemies/ground_enemy.tscn")
+const HazardEnemyScene := preload("res://scenes/enemies/hazard_enemy.tscn")
 const StartMarkerScene := preload("res://scenes/level/start_marker.tscn")
 const GateMarkerScene := preload("res://scenes/level/gate_marker.tscn")
 
@@ -185,6 +186,16 @@ func _spawn_enemies() -> void:
 		var ground_enemy: Node2D = GroundEnemyScene.instantiate()
 		enemy_container.add_child(ground_enemy)
 		ground_enemy.setup(pos.x, pos.y, ground_height)
+	
+	# Spawn hazardous flying enemies (spike targets).
+	var hazard_positions: Array[Vector2i] = [
+		Vector2i(16, 12),
+	]
+	for pos in hazard_positions:
+		var hazard_height: float = float(height_map.get(pos, 0.0))
+		var hazard_enemy: Node2D = HazardEnemyScene.instantiate()
+		enemy_container.add_child(hazard_enemy)
+		hazard_enemy.setup(pos.x, pos.y, hazard_height)
 
 func _spawn_pickups() -> void:
 	if not pickup_container:

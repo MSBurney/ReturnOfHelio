@@ -354,6 +354,7 @@ func _process_homing_attack(delta: float) -> void:
 	
 	# If we would overshoot, clamp to target position and hit
 	if move_distance >= distance or distance < 8.0:
+		var hazard_dir := Vector2(to_target.x, to_target.y)
 		# Snap to target position (or very close) then register hit
 		world_pos = target_world_pos
 		var target_owner: Node = null
@@ -361,8 +362,10 @@ func _process_homing_attack(delta: float) -> void:
 			target_owner = homing_target.get_owner_body()
 		if _is_node_hazardous(homing_target):
 			var hazard_source: Node = target_owner if target_owner else homing_target
-			var hazard_dir := Vector2(world_pos.x - target_world_pos.x, world_pos.y - target_world_pos.y)
 			take_damage(1, hazard_dir, hazard_source)
+			# Hazardous targets do not take homing damage.
+			_end_homing_attack(false)
+			return
 		if target_owner and target_owner.has_method("take_damage"):
 			target_owner.take_damage(1)
 		elif homing_target.has_method("take_damage"):
