@@ -23,10 +23,11 @@ func _try_contact_damage(player: Node2D) -> void:
 			return
 	var p_pos: Vector3 = player.get_world_pos()
 	var dist := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y).length()
-	if dist <= 0.8:
+	var height_diff := absf(p_pos.z - world_pos.z)
+	if dist <= 0.8 and height_diff <= 8.0:
 		var dir := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y)
 		if player.has_method("take_damage"):
-			player.take_damage(contact_damage, dir)
+			player.take_damage(contact_damage, dir, self)
 		contact_timer = contact_cooldown
 
 func _setup_placeholder_sprites() -> void:

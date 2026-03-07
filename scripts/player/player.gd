@@ -268,16 +268,15 @@ func _process_jump() -> void:
 			can_double_jump = true  # Enable double jump after first jump
 			just_jumped = true
 			jump_buffer_timer = 0.0
-		elif not is_on_ground and can_double_jump:
-			# Airborne with double jump available
-			var target := _find_homing_target()
+		elif not is_on_ground:
+			# In air: homing is allowed whenever a target is valid.
+			var target: Node2D = _find_homing_target()
 			if target:
-				# Homing attack takes priority when target exists
 				_start_homing_attack(target)
 				can_double_jump = false
 				jump_buffer_timer = 0.0
-			else:
-				# No target - perform double jump
+			elif can_double_jump:
+				# No target - perform double jump (once per airtime)
 				velocity.z = jump_velocity * 0.8
 				can_double_jump = false
 				jump_buffer_timer = 0.0
@@ -355,10 +354,15 @@ func _process_homing_attack(delta: float) -> void:
 	if move_distance >= distance or distance < 8.0:
 		# Snap to target position (or very close) then register hit
 		world_pos = target_world_pos
+		var target_owner: Node = null
 		if homing_target.has_method("get_owner_body"):
-			var owner_body: Node = homing_target.get_owner_body()
-			if owner_body and owner_body.has_method("take_damage"):
-				owner_body.take_damage(1)
+			target_owner = homing_target.get_owner_body()
+		if _is_node_hazardous(homing_target):
+			var hazard_source: Node = target_owner if target_owner else homing_target
+			var hazard_dir := Vector2(world_pos.x - target_world_pos.x, world_pos.y - target_world_pos.y)
+			take_damage(1, hazard_dir, hazard_source)
+		if target_owner and target_owner.has_method("take_damage"):
+			target_owner.take_damage(1)
 		elif homing_target.has_method("take_damage"):
 			homing_target.take_damage(1)
 		_end_homing_attack(true)
@@ -518,7 +522,9 @@ func _set_action_state(new_state: ActionState) -> void:
 		return
 	action_state = new_state
 
-func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
+func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node = null) -> void:
+	if is_homing and not _is_homing_damage_hazardous(source):
+		return
 	if invuln_timer > 0.0 or is_dead:
 		return
 	hp -= amount
@@ -534,6 +540,30 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
 		_die()
 		return
 	_update_health_bar()
+
+func _is_homing_damage_hazardous(source: Node) -> bool:
+	if source and _is_node_hazardous(source):
+		return true
+	if source == null and is_instance_valid(homing_target):
+		return _is_node_hazardous(homing_target)
+	return false
+
+func _is_node_hazardous(node: Node) -> bool:
+	if not is_instance_valid(node):
+		return false
+	if node.is_in_group("hazardous"):
+		return true
+	if node.has_method("is_hazardous"):
+		return node.is_hazardous()
+	if node.has_method("get"):
+		var hazard_flag: Variant = node.get("hazardous")
+		if hazard_flag is bool and hazard_flag:
+			return true
+	if node.has_method("get_owner_body"):
+		var owner_body: Node = node.get_owner_body()
+		if owner_body and owner_body != node:
+			return _is_node_hazardous(owner_body)
+	return false
 
 func _die() -> void:
 	is_dead = true

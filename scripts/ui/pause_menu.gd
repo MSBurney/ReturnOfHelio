@@ -1,5 +1,5 @@
 class_name PauseMenu
-extends CanvasLayer
+extends Control
 
 @onready var menu: VBoxContainer = $Panel/Menu
 
@@ -28,7 +28,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_selection()
 	elif event.is_action_pressed("ui_accept"):
 		_activate()
-	elif event.is_action_pressed("ui_cancel"):
+	elif event.is_action_pressed("ui_cancel") or _is_escape_pressed(event):
 		_resume()
 
 func _update_selection() -> void:
@@ -51,3 +51,11 @@ func _activate() -> void:
 func _resume() -> void:
 	get_tree().paused = false
 	hide_menu()
+
+func _is_escape_pressed(event: InputEvent) -> bool:
+	if not (event is InputEventKey):
+		return false
+	var key_event: InputEventKey = event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return false
+	return key_event.keycode == 4194305 or key_event.physical_keycode == 4194305

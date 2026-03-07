@@ -132,7 +132,7 @@ func _do_slam() -> void:
 		if dist <= slam_radius:
 			var dir := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y)
 			if p.has_method("take_damage"):
-				p.take_damage(slam_damage, dir)
+				p.take_damage(slam_damage, dir, self)
 
 func _update_crash(delta: float) -> void:
 	if crash_state == 0:
@@ -214,7 +214,7 @@ func _do_crash_damage() -> void:
 		if dist <= crash_radius:
 			var dir := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y)
 			if p.has_method("take_damage"):
-				p.take_damage(crash_damage, dir)
+				p.take_damage(crash_damage, dir, self)
 
 func _try_contact_damage(_player: Node2D) -> void:
 	# Boss only damages via slam/crash, not passive contact

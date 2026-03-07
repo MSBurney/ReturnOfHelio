@@ -17,6 +17,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_selection()
 	elif event.is_action_pressed("ui_accept"):
 		_activate()
+	elif event.is_action_pressed("ui_cancel"):
+		# Cancel is mapped (X/K/ESC), no-op on title screen.
+		pass
 
 func _update_selection() -> void:
 	for i in range(menu.get_child_count()):

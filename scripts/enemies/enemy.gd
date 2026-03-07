@@ -5,7 +5,8 @@ extends IsoEntity
 @export var float_height: float = 16.0  # Height above ground
 @export var bob_amplitude: float = 2.0  # Vertical bob amount
 @export var bob_speed: float = 2.0  # Bob cycle speed
-@export var max_hp: int = 1  # Nibbler = 1 HP per GDD
+@export var max_hp: int = 3  # Default enemy durability for multi-hit combat
+@export var hazardous: bool = false  # Mark true for spike/hazard targets
 @export var invuln_time: float = 0.25
 @export var hit_flash_time: float = 0.1
 @export var knockback_strength: float = 1.5
@@ -36,6 +37,8 @@ var contact_timer: float = 0.0
 func _ready() -> void:
 	super._ready()
 	add_to_group("enemies")
+	if hazardous:
+		add_to_group("hazardous")
 	
 	_setup_placeholder_sprites()
 	_update_screen_position()
@@ -226,10 +229,11 @@ func _try_contact_damage(player: Node2D) -> void:
 			return
 	var p_pos: Vector3 = player.get_world_pos()
 	var dist := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y).length()
-	if dist <= 0.8:
+	var height_diff := absf(p_pos.z - world_pos.z)
+	if dist <= 0.8 and height_diff <= 12.0:
 		var dir := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y)
 		if player.has_method("take_damage"):
-			player.take_damage(contact_damage, dir)
+			player.take_damage(contact_damage, dir, self)
 		contact_timer = contact_cooldown
 
 func _update_timers(delta: float) -> void:
@@ -245,3 +249,6 @@ func _update_timers(delta: float) -> void:
 func _update_health_bar() -> void:
 	if health_bar and health_bar.has_method("set_values"):
 		health_bar.set_values(hp, max_hp)
+
+func is_hazardous() -> bool:
+	return hazardous

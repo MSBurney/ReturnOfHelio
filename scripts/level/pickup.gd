@@ -5,6 +5,7 @@ signal collected(value: int)
 
 @export var value: int = 1
 @export var radius: float = 0.6
+@export var z_tolerance: float = 6.0
 
 @onready var sprite: Sprite2D = $Sprite
 
@@ -34,6 +35,9 @@ func _process(_delta: float) -> void:
 		if not p.has_method("get_world_pos"):
 			continue
 		var p_pos: Vector3 = p.get_world_pos()
+		var height_diff := absf(p_pos.z - world_pos.z)
+		if height_diff > z_tolerance:
+			continue
 		var dist := Vector2(p_pos.x - world_pos.x, p_pos.y - world_pos.y).length()
 		if dist <= radius:
 			emit_signal("collected", value)

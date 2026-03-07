@@ -1,0 +1,8 @@
+res://scripts/enemies/enemy.gd
+res://scripts/enemies/ground_enemy.gd
+res://scripts/level/level_loader.gd
+res://scripts/level/pickup.gd
+res://scripts/level/test_level.gd
+res://scripts/player/player.gd
+res://scripts/ui/pause_menu.gd
+res://scripts/enemies/boss.gd

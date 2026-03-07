@@ -28,8 +28,8 @@ var height_map: Dictionary = {}
 @onready var boss_container: Node2D = $Bosses
 @onready var marker_container: Node2D = $Markers
 @onready var pickup_label: Label = $UI/PickupLabel
-@onready var pause_menu: CanvasLayer = $UI/PauseMenu
-@onready var end_screen: CanvasLayer = $UI/EndScreen
+@onready var pause_menu: Control = $UI/PauseMenu
+@onready var end_screen: Control = $UI/EndScreen
 @onready var player: Node2D = $Player
 @onready var camera: Camera2D = $Camera2D
 var player2: Node2D = null
@@ -250,7 +250,7 @@ func _check_goal() -> void:
 	var goal_pos := Vector2(goal_tile.x + 0.5, goal_tile.y + 0.5)
 	var p1_pos: Vector3 = player.get_world_pos()
 	var p2_pos: Vector3 = player2.get_world_pos() if player2 else p1_pos
-	if Vector2(p1_pos.x, p1_pos.y).distance_to(goal_pos) <= 1.0 and Vector2(p2_pos.x, p2_pos.y).distance_to(goal_pos) <= 1.5:
+	if Vector2(p1_pos.x, p1_pos.y).distance_to(goal_pos) <= 1.75 or Vector2(p2_pos.x, p2_pos.y).distance_to(goal_pos) <= 1.75:
 		level_complete = true
 		if end_screen and end_screen.has_method("show_menu"):
 			get_tree().paused = true
@@ -339,10 +339,26 @@ func _process(_delta: float) -> void:
 		_check_player_fall(player2, Vector2i(4, 3))
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") and not get_tree().paused:
-		if pause_menu and pause_menu.has_method("show_menu"):
-			get_tree().paused = true
-			pause_menu.show_menu()
+	if not _is_escape_pressed(event):
+		return
+	
+	if get_tree().paused:
+		if pause_menu and pause_menu.visible and pause_menu.has_method("hide_menu"):
+			get_tree().paused = false
+			pause_menu.hide_menu()
+		return
+	
+	if pause_menu and pause_menu.has_method("show_menu"):
+		get_tree().paused = true
+		pause_menu.show_menu()
+
+func _is_escape_pressed(event: InputEvent) -> bool:
+	if not (event is InputEventKey):
+		return false
+	var key_event: InputEventKey = event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return false
+	return key_event.keycode == 4194305 or key_event.physical_keycode == 4194305
 
 # Returns the tile height at a given world x, y position
 func get_tile_height_at(world_x: float, world_y: float) -> float:
