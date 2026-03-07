@@ -6,6 +6,7 @@ extends Control
 var index: int = 0
 
 func _ready() -> void:
+	_play_music("title")
 	if not GameState.has_save_data():
 		index = 1
 	_update_selection()
@@ -52,3 +53,10 @@ func _play_ui_sfx(event_id: String) -> void:
 	var audio := get_node_or_null("/root/AudioManager")
 	if audio and audio.has_method("play_sfx"):
 		audio.play_sfx(event_id)
+
+func _play_music(track_id: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var audio := get_node_or_null("/root/AudioManager")
+	if audio and audio.has_method("play_music"):
+		audio.play_music(track_id, 0.2)

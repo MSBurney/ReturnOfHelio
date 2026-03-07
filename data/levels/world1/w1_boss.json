@@ -217,7 +217,7 @@
             ],
             "entities": [
                 {"type": "checkpoint", "x": 2, "y": 8},
-                {"type": "boss_king_ribbit", "x": 10, "y": 8},
+                {"type": "boss_king_ribbit", "x": 10, "y": 8, "properties": {"crash_interval": 4.2, "crash_telegraph_time": 0.65, "tongue_interval": 2.2}},
                 {"type": "goal", "x": 17, "y": 8}
             ],
             "connections": []

@@ -51,6 +51,7 @@ var start_marker: Node2D = null
 var gate_marker: Node2D = null
 var goal_world_pos: Vector3 = Vector3.ZERO  # Stored directly for reliable distance checks
 var has_goal: bool = false
+var level_state_id: String = ""
 
 # Game state
 var separation_timer: float = 0.0
@@ -62,6 +63,10 @@ var collected_keys: int = 0
 var checkpoint_nodes: Array[Node2D] = []
 var activated_checkpoints: Dictionary = {}  # "segment_id:x,y" -> true
 var removed_entities: Dictionary = {}  # "segment_id:type:x,y" -> true
+var door_state_overrides: Dictionary = {}  # "segment_id:x,y" -> TileTypes.TileType
+var _resume_segment_id: String = ""
+var _resume_start_tile: Vector2i = Vector2i.ZERO
+var _has_resume_tile: bool = false
 
 # Co-op tether
 @export var max_player_separation: float = 12.0
@@ -80,6 +85,8 @@ var _camera_shake_intensity: float = 0.0
 func _ready() -> void:
 	if not GameState.camera_shake_requested.is_connected(_on_camera_shake_requested):
 		GameState.camera_shake_requested.connect(_on_camera_shake_requested)
+	var music_track := "boss" if GameState.current_level == 0 else "level"
+	_play_music(music_track)
 	if level_json_path != "":
 		load_level_from_path(level_json_path)
 	else:
@@ -96,12 +103,8 @@ func load_level_from_path(path: String) -> void:
 		push_error("LevelLoader: Failed to load level from: " + path)
 		return
 
-	# Reset level-wide state
-	collected_pickups = 0
-	total_pickups = 0
-	level_complete = false
-	activated_checkpoints.clear()
-	removed_entities.clear()
+	# Reset level-wide state before optional restore.
+	_reset_runtime_state_defaults()
 
 	# Count total pickups across ALL segments
 	for seg_id in level_data.segments:
@@ -110,8 +113,18 @@ func load_level_from_path(path: String) -> void:
 			if ent.type == "pickup":
 				total_pickups += 1
 
-	# Load the starting segment
-	_load_segment(level_data.start_segment, level_data.start_position)
+	level_state_id = _resolve_level_state_id()
+	_restore_runtime_state()
+
+	# Load the starting segment (restored segment/tile when available).
+	var start_segment: String = level_data.start_segment
+	var start_position: Vector2i = level_data.start_position
+	if _resume_segment_id != "" and level_data.segments.has(_resume_segment_id):
+		start_segment = _resume_segment_id
+	if _has_resume_tile:
+		start_position = _resume_start_tile
+	_load_segment(start_segment, start_position)
+	_save_runtime_state()
 
 func _load_segment(segment_id: String, player_start: Vector2i) -> void:
 	if not level_data or not level_data.segments.has(segment_id):
@@ -126,6 +139,7 @@ func _load_segment(segment_id: String, player_start: Vector2i) -> void:
 	# Build maps
 	height_map = level_data.get_segment_height_map(segment_id)
 	type_map = level_data.get_segment_type_map(segment_id)
+	_apply_persistent_tile_states(segment_id)
 
 	# Clear existing content
 	_clear_segment()
@@ -193,42 +207,49 @@ func _spawn_entities(segment: LevelData.SegmentData) -> void:
 				var enemy: Node2D = EnemyScene.instantiate()
 				enemy_container.add_child(enemy)
 				enemy.setup(pos.x, pos.y, ground_height)
+				_apply_entity_properties(enemy, entity_entry.properties)
 				if enemy.has_signal("died"):
 					enemy.died.connect(_on_enemy_died.bind(entity_key))
 			"ground_enemy":
 				var ground_enemy: Node2D = GroundEnemyScene.instantiate()
 				enemy_container.add_child(ground_enemy)
 				ground_enemy.setup(pos.x, pos.y, ground_height)
+				_apply_entity_properties(ground_enemy, entity_entry.properties)
 				if ground_enemy.has_signal("died"):
 					ground_enemy.died.connect(_on_enemy_died.bind(entity_key))
 			"enemy_hopper":
 				var hopper: Node2D = HopperScene.instantiate()
 				enemy_container.add_child(hopper)
 				hopper.setup(pos.x, pos.y, ground_height)
+				_apply_entity_properties(hopper, entity_entry.properties)
 				if hopper.has_signal("died"):
 					hopper.died.connect(_on_enemy_died.bind(entity_key))
 			"enemy_buzzfly":
 				var buzzfly: Node2D = BuzzflyScene.instantiate()
 				enemy_container.add_child(buzzfly)
 				buzzfly.setup(pos.x, pos.y, ground_height)
+				_apply_entity_properties(buzzfly, entity_entry.properties)
 				if buzzfly.has_signal("died"):
 					buzzfly.died.connect(_on_enemy_died.bind(entity_key))
 			"enemy_hazard":
 				var hazard_enemy: Node2D = HazardEnemyScene.instantiate()
 				enemy_container.add_child(hazard_enemy)
 				hazard_enemy.setup(pos.x, pos.y, ground_height)
+				_apply_entity_properties(hazard_enemy, entity_entry.properties)
 				if hazard_enemy.has_signal("died"):
 					hazard_enemy.died.connect(_on_enemy_died.bind(entity_key))
 			"boss":
 				var boss: Node2D = BossScene.instantiate()
 				boss_container.add_child(boss)
 				boss.setup(pos.x, pos.y, ground_height)
+				_apply_entity_properties(boss, entity_entry.properties)
 				boss.set("active", false)
 				boss_ref = boss
 			"boss_king_ribbit":
 				var boss: Node2D = KingRibbitScene.instantiate()
 				boss_container.add_child(boss)
 				boss.setup(pos.x, pos.y, ground_height)
+				_apply_entity_properties(boss, entity_entry.properties)
 				boss.set("active", false)
 				boss_ref = boss
 			"pickup":
@@ -283,11 +304,16 @@ func _setup_player(start_tile: Vector2i) -> void:
 	if player_count >= 2:
 		var p2_tile := Vector2i(start_tile.x + 1, start_tile.y)
 		var p2_height: float = float(height_map.get(p2_tile, 0.0))
-		player2 = PlayerScene.instantiate()
-		if player2.has_method("set"):
-			player2.set("player_id", 2)
-		add_child(player2)
+		if not player2 or not is_instance_valid(player2):
+			player2 = PlayerScene.instantiate()
+			if player2.has_method("set"):
+				player2.set("player_id", 2)
+			add_child(player2)
 		player2.set_world_pos(Vector3(p2_tile.x + 0.5, p2_tile.y + 0.5, p2_height))
+	else:
+		if player2 and is_instance_valid(player2):
+			player2.queue_free()
+		player2 = null
 
 func _spawn_markers(start_tile: Vector2i) -> void:
 	var start_height: float = float(height_map.get(start_tile, 0.0))
@@ -301,14 +327,17 @@ func _on_pickup_collected(value: int, entity_key: String = "") -> void:
 	if entity_key != "":
 		removed_entities[entity_key] = true
 	_update_pickup_label()
+	_save_runtime_state()
 
 func _on_key_collected(_value: int, entity_key: String = "") -> void:
 	GameState.add_keys(1)
 	if entity_key != "":
 		removed_entities[entity_key] = true
+	_save_runtime_state()
 
 func _on_enemy_died(entity_key: String) -> void:
 	removed_entities[entity_key] = true
+	_save_runtime_state()
 
 func _update_pickup_label() -> void:
 	if pickup_label:
@@ -439,6 +468,13 @@ func _update_hud() -> void:
 	if hud and hud.has_method("update_hearts") and player:
 		hud.update_hearts(player.hp, player.max_hp)
 
+func _play_music(track_id: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var audio := get_node_or_null("/root/AudioManager")
+	if audio and audio.has_method("play_music"):
+		audio.play_music(track_id, 0.25)
+
 ## Show game over screen
 func show_game_over() -> void:
 	if game_over_screen and game_over_screen.has_method("show_menu"):
@@ -449,6 +485,7 @@ func transition_to_segment(segment_id: String, target_pos: Vector2i) -> void:
 	if not level_data or not level_data.segments.has(segment_id):
 		return
 	_load_segment(segment_id, target_pos)
+	_save_runtime_state()
 
 ## Activate checkpoint at a position
 func activate_checkpoint(pos: Vector3) -> void:
@@ -459,6 +496,7 @@ func activate_checkpoint(pos: Vector3) -> void:
 	activated_checkpoints[cp_key] = true
 	last_checkpoint_pos = pos
 	last_checkpoint_segment = current_segment_id
+	_save_runtime_state()
 	GameState.save_progress()
 	# Activate visual checkpoint node
 	for cp in checkpoint_nodes:
@@ -499,6 +537,8 @@ func get_tile_type_at(world_x: float, world_y: float) -> TileTypes.TileType:
 func unlock_door_at(world_x: float, world_y: float) -> void:
 	var tile_pos := Vector2i(int(floor(world_x)), int(floor(world_y)))
 	type_map[tile_pos] = TileTypes.TileType.DOOR_OPEN
+	door_state_overrides[_tile_state_key(current_segment_id, tile_pos)] = TileTypes.TileType.DOOR_OPEN
+	_save_runtime_state()
 	# Update the visual tile
 	for tile in tile_container.get_children():
 		if tile.has_method("get") and tile.get("tile_x") == tile_pos.x and tile.get("tile_y") == tile_pos.y:
@@ -515,6 +555,25 @@ func is_step_blocked(world_x: float, world_y: float, current_z: float, max_step:
 	var ground_height := get_tile_height_at(world_x, world_y)
 	return ground_height > current_z + max_step
 
+func _tile_state_key(segment_id: String, tile_pos: Vector2i) -> String:
+	return "%s:%d,%d" % [segment_id, tile_pos.x, tile_pos.y]
+
+func _apply_persistent_tile_states(segment_id: String) -> void:
+	for key in door_state_overrides.keys():
+		var key_text: String = str(key)
+		if not key_text.begins_with(segment_id + ":"):
+			continue
+		var tile_data := key_text.split(":")
+		if tile_data.size() != 2:
+			continue
+		var coords := tile_data[1].split(",")
+		if coords.size() != 2:
+			continue
+		var tile_pos := Vector2i(int(coords[0]), int(coords[1]))
+		var state_value: Variant = door_state_overrides[key]
+		if state_value is int:
+			type_map[tile_pos] = int(state_value)
+
 func _on_camera_shake_requested(intensity: float, duration: float) -> void:
 	_camera_shake_intensity = maxf(_camera_shake_intensity, intensity)
 	_camera_shake_time = maxf(_camera_shake_time, duration)
@@ -526,3 +585,91 @@ func _apply_camera_shake(delta: float) -> void:
 	var offset := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * _camera_shake_intensity
 	camera.position += offset
 	_camera_shake_intensity = maxf(_camera_shake_intensity - (delta * 18.0), 0.0)
+
+func _resolve_level_state_id() -> String:
+	if level_data and level_data.level_id != "":
+		return level_data.level_id
+	if GameState.current_level == 0:
+		return "w%d_boss" % GameState.current_world
+	return "w%d_l%02d" % [GameState.current_world, GameState.current_level]
+
+func _reset_runtime_state_defaults() -> void:
+	collected_pickups = 0
+	total_pickups = 0
+	level_complete = false
+	activated_checkpoints.clear()
+	removed_entities.clear()
+	door_state_overrides.clear()
+	_resume_segment_id = ""
+	_resume_start_tile = Vector2i.ZERO
+	_has_resume_tile = false
+
+func _restore_runtime_state() -> void:
+	if level_state_id == "":
+		return
+	var state: Dictionary = GameState.get_level_runtime_state(level_state_id)
+	if state.is_empty():
+		return
+	collected_pickups = clampi(int(state.get("collected_pickups", 0)), 0, total_pickups)
+	var saved_checkpoints: Variant = state.get("activated_checkpoints", {})
+	if saved_checkpoints is Dictionary:
+		activated_checkpoints = saved_checkpoints.duplicate(true)
+	var saved_removed: Variant = state.get("removed_entities", {})
+	if saved_removed is Dictionary:
+		removed_entities = saved_removed.duplicate(true)
+	var saved_doors: Variant = state.get("door_state_overrides", {})
+	if saved_doors is Dictionary:
+		door_state_overrides = saved_doors.duplicate(true)
+	last_checkpoint_segment = str(state.get("last_checkpoint_segment", ""))
+	var saved_checkpoint_pos: Variant = state.get("last_checkpoint_pos", [])
+	if saved_checkpoint_pos is Array and saved_checkpoint_pos.size() >= 3:
+		last_checkpoint_pos = Vector3(
+			float(saved_checkpoint_pos[0]),
+			float(saved_checkpoint_pos[1]),
+			float(saved_checkpoint_pos[2])
+		)
+	var saved_segment: String = str(state.get("current_segment", ""))
+	if saved_segment != "":
+		_resume_segment_id = saved_segment
+	var saved_resume_tile: Variant = state.get("resume_tile", [])
+	if saved_resume_tile is Array and saved_resume_tile.size() >= 2:
+		_resume_start_tile = Vector2i(int(saved_resume_tile[0]), int(saved_resume_tile[1]))
+		_has_resume_tile = true
+
+func _save_runtime_state() -> void:
+	if level_state_id == "":
+		return
+	var resume_tile := _get_resume_tile()
+	var payload := {
+		"collected_pickups": collected_pickups,
+		"activated_checkpoints": activated_checkpoints.duplicate(true),
+		"removed_entities": removed_entities.duplicate(true),
+		"door_state_overrides": door_state_overrides.duplicate(true),
+		"last_checkpoint_segment": last_checkpoint_segment,
+		"last_checkpoint_pos": [last_checkpoint_pos.x, last_checkpoint_pos.y, last_checkpoint_pos.z],
+		"current_segment": current_segment_id,
+		"resume_tile": [resume_tile.x, resume_tile.y],
+	}
+	GameState.set_level_runtime_state(level_state_id, payload)
+
+func _get_resume_tile() -> Vector2i:
+	if player and player.has_method("get_world_pos"):
+		var player_pos: Vector3 = player.get_world_pos()
+		return Vector2i(int(floor(player_pos.x)), int(floor(player_pos.y)))
+	return level_data.start_position if level_data else Vector2i.ZERO
+
+func _apply_entity_properties(node: Node, properties: Dictionary) -> void:
+	if node == null or properties.is_empty():
+		return
+	for raw_key in properties.keys():
+		var prop_name: String = str(raw_key)
+		if not _node_has_property(node, prop_name):
+			continue
+		node.set(prop_name, properties[raw_key])
+
+func _node_has_property(node: Object, property_name: String) -> bool:
+	for entry in node.get_property_list():
+		var item: Variant = entry
+		if item is Dictionary and str(item.get("name", "")) == property_name:
+			return true
+	return false

@@ -6,6 +6,7 @@ const AirborneStateScript := preload("res://scripts/player/states/airborne_state
 const HomingStateScript := preload("res://scripts/player/states/homing_state.gd")
 const HurtStateScript := preload("res://scripts/player/states/hurt_state.gd")
 const DeadStateScript := preload("res://scripts/player/states/dead_state.gd")
+const DashSmokeBurstScene := preload("res://scenes/effects/dash_smoke_burst.tscn")
 
 # Movement parameters
 @export var move_speed: float = 108.0  # World units per second
@@ -39,6 +40,12 @@ var action_state: ActionState = ActionState.GROUNDED
 @export var charge_recovery: float = 0.2
 @export var attack_visual_distance: float = 48.0  # Screen pixels
 @export var attack_visual_time: float = 0.18
+@export var dash_distance: float = 18.0  # World units traveled per dash
+@export var dash_duration: float = 0.18  # Seconds (fast burst)
+@export var dash_recovery: float = 0.1
+@export var dash_damage: int = 2
+@export var dash_hit_radius: float = 0.9
+@export var dash_input_window: float = 0.12  # Max gap between jump+attack presses
 
 # Health/feedback
 @export var max_hp: int = 3
@@ -72,6 +79,16 @@ var charge_timer: float = 0.0
 var charge_fired: bool = false
 var flash_timer: float = 0.0
 var combo_hand_index: int = 0
+var is_dashing: bool = false
+var dash_timer: float = 0.0
+var dash_remaining_distance: float = 0.0
+var dash_direction: Vector2 = Vector2.ZERO
+var dash_hit_ids: Dictionary = {}
+var dash_jump_buffer: float = 0.0
+var dash_attack_buffer: float = 0.0
+var dash_elapsed: float = 0.0
+var dash_smoke_timer: float = 0.0
+var dash_flash_sprite: Sprite2D = null
 
 var hand_attack_time: Array[float] = [0.0, 0.0]
 var hand_attack_active: Array[bool] = [false, false]
@@ -176,6 +193,7 @@ func _setup_placeholder_sprites() -> void:
 		var tex := ImageTexture.create_from_image(img)
 		sprite.texture = tex
 		sprite.offset = Vector2(0, -7)
+		_setup_dash_flash_sprite(img)
 	
 	# Create shadow sprite (ellipse)
 	if shadow and shadow.texture == null:
@@ -199,6 +217,25 @@ func _setup_placeholder_sprites() -> void:
 		hand_right.texture = hand_tex
 		hand_right.z_index = 20
 
+func _setup_dash_flash_sprite(source_img: Image) -> void:
+	# White additive overlay used to make dash state visually obvious.
+	var flash_img := Image.create(source_img.get_width(), source_img.get_height(), false, Image.FORMAT_RGBA8)
+	for y in range(source_img.get_height()):
+		for x in range(source_img.get_width()):
+			var a := source_img.get_pixel(x, y).a
+			if a > 0.0:
+				flash_img.set_pixel(x, y, Color(1, 1, 1, a))
+	var flash_tex := ImageTexture.create_from_image(flash_img)
+	dash_flash_sprite = Sprite2D.new()
+	dash_flash_sprite.texture = flash_tex
+	dash_flash_sprite.offset = Vector2(0, -7)
+	dash_flash_sprite.z_index = 25
+	dash_flash_sprite.visible = false
+	var flash_material := CanvasItemMaterial.new()
+	flash_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	dash_flash_sprite.material = flash_material
+	add_child(dash_flash_sprite)
+
 func _create_hand_texture() -> ImageTexture:
 	var size := 6
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
@@ -214,9 +251,12 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 	_update_timers(delta)
+	_try_start_dash()
 	_process_attack(delta)
 	_update_hands(delta)
-	if _current_state:
+	if is_dashing:
+		_process_dash(delta)
+	elif _current_state:
 		_current_state.physics_update(self, delta)
 	
 	_update_collision()
@@ -284,6 +324,164 @@ func _process_gravity(delta: float) -> void:
 	if not is_on_ground:
 		velocity.z -= gravity * delta
 	world_pos.z += velocity.z * delta
+
+func _try_start_dash() -> void:
+	if is_dashing or is_homing or is_dead:
+		return
+	if not is_on_ground:
+		return
+	if action_state == ActionState.HURT or action_state == ActionState.DEAD:
+		return
+	if dash_jump_buffer <= 0.0 or dash_attack_buffer <= 0.0:
+		return
+	var dash_dir := _get_dash_direction()
+	if dash_dir.length_squared() == 0.0:
+		return
+	_start_dash(dash_dir)
+
+func _get_dash_direction() -> Vector2:
+	var input := Vector2.ZERO
+	input.x = Input.get_axis(_move_left_action, _move_right_action)
+	input.y = Input.get_axis(_move_up_action, _move_down_action)
+	var world_dir := IsoUtils.input_to_world_direction(input)
+	if world_dir.length_squared() > 0.0:
+		last_move_dir = world_dir.normalized()
+		return world_dir.normalized()
+	if last_move_dir.length_squared() > 0.0:
+		return last_move_dir.normalized()
+	return Vector2.ZERO
+
+func _start_dash(dir: Vector2) -> void:
+	is_dashing = true
+	dash_direction = dir.normalized()
+	dash_timer = dash_duration
+	dash_elapsed = 0.0
+	dash_remaining_distance = dash_distance
+	dash_hit_ids.clear()
+	dash_smoke_timer = 0.0
+	dash_jump_buffer = 0.0
+	dash_attack_buffer = 0.0
+	horizontal_velocity = Vector2.ZERO
+	velocity.z = 0.0
+	charging = false
+	charge_timer = 0.0
+	charge_fired = false
+	combo_step = 0
+	combo_timer = 0.0
+	attack_cooldown = maxf(attack_cooldown, dash_recovery)
+	_play_sfx("attack")
+	_update_dash_visual(0.0)
+	_spawn_dash_smoke()
+
+func _process_dash(delta: float) -> void:
+	if not is_dashing:
+		return
+	if dash_timer <= 0.0 or dash_remaining_distance <= 0.0:
+		_end_dash()
+		return
+	dash_elapsed += delta
+	var progress := clampf(dash_elapsed / maxf(dash_duration, 0.001), 0.0, 1.0)
+	# Smooth accel/decel profile (0 at start/end, peak at midpoint).
+	var profile: float = maxf(sin(progress * PI), 0.0)
+	var average_profile := 2.0 / PI
+	var dash_speed := (dash_distance / maxf(dash_duration, 0.001)) * (profile / maxf(average_profile, 0.001))
+	var desired_step := minf(dash_speed * delta, dash_remaining_distance)
+	var start_pos := Vector2(world_pos.x, world_pos.y)
+	var target_pos := start_pos + dash_direction * desired_step
+	var final_pos := _resolve_dash_step_collision(target_pos)
+	world_pos.x = final_pos.x
+	world_pos.y = final_pos.y
+	var moved_distance := start_pos.distance_to(final_pos)
+	_apply_dash_damage_segment(start_pos, final_pos)
+	dash_remaining_distance = maxf(dash_remaining_distance - moved_distance, 0.0)
+	dash_timer = maxf(dash_timer - delta, 0.0)
+	dash_smoke_timer = maxf(dash_smoke_timer - delta, 0.0)
+	if dash_smoke_timer <= 0.0:
+		_spawn_dash_smoke()
+		dash_smoke_timer = 0.02
+	_update_dash_visual(progress)
+	if moved_distance <= 0.001 or dash_timer <= 0.0 or dash_remaining_distance <= 0.0:
+		_end_dash()
+
+func _resolve_dash_step_collision(target_pos: Vector2) -> Vector2:
+	var new_x := target_pos.x
+	var new_y := target_pos.y
+	if level and level.has_method("is_step_blocked"):
+		if level.is_step_blocked(new_x, world_pos.y, world_pos.z, max_step_height):
+			new_x = world_pos.x
+		if level.is_step_blocked(world_pos.x, new_y, world_pos.z, max_step_height):
+			new_y = world_pos.y
+		if level.is_step_blocked(new_x, new_y, world_pos.z, max_step_height):
+			new_x = world_pos.x
+			new_y = world_pos.y
+	return Vector2(new_x, new_y)
+
+func _apply_dash_damage_segment(start_pos: Vector2, end_pos: Vector2) -> void:
+	var targets := get_tree().get_nodes_in_group("hurtboxes")
+	if targets.is_empty():
+		targets = get_tree().get_nodes_in_group("enemies")
+	var hit_any: bool = false
+	for target in targets:
+		if not is_instance_valid(target):
+			continue
+		if not target.has_method("get_world_pos"):
+			continue
+		var target_pos3: Vector3 = target.get_world_pos()
+		var target_pos := Vector2(target_pos3.x, target_pos3.y)
+		if _distance_to_segment(target_pos, start_pos, end_pos) > dash_hit_radius:
+			continue
+		var owner: Node = target
+		if target.has_method("get_owner_body"):
+			var owner_body: Node = target.get_owner_body()
+			if owner_body:
+				owner = owner_body
+		var key := str(owner.get_instance_id())
+		if dash_hit_ids.has(key):
+			continue
+		dash_hit_ids[key] = true
+		if _is_node_hazardous(owner):
+			take_damage(1, dash_direction, owner)
+		if owner and owner.has_method("take_damage"):
+			owner.take_damage(dash_damage, dash_direction)
+			hit_any = true
+	if hit_any:
+		_emit_hit_feedback(1.1)
+
+func _distance_to_segment(point: Vector2, seg_a: Vector2, seg_b: Vector2) -> float:
+	var ab := seg_b - seg_a
+	var ab_len_sq := ab.length_squared()
+	if ab_len_sq <= 0.000001:
+		return point.distance_to(seg_a)
+	var t := clampf((point - seg_a).dot(ab) / ab_len_sq, 0.0, 1.0)
+	var closest := seg_a + ab * t
+	return point.distance_to(closest)
+
+func _end_dash() -> void:
+	is_dashing = false
+	dash_timer = 0.0
+	dash_elapsed = 0.0
+	dash_remaining_distance = 0.0
+	dash_smoke_timer = 0.0
+	dash_hit_ids.clear()
+	if dash_flash_sprite:
+		dash_flash_sprite.visible = false
+
+func _update_dash_visual(progress: float) -> void:
+	if not dash_flash_sprite:
+		return
+	dash_flash_sprite.visible = true
+	var pulse: float = 0.55 + 0.45 * sin(progress * PI * 6.0)
+	dash_flash_sprite.modulate = Color(1, 1, 1, clampf(pulse, 0.2, 1.0))
+
+func _spawn_dash_smoke() -> void:
+	if not DashSmokeBurstScene:
+		return
+	if not get_parent():
+		return
+	var burst := DashSmokeBurstScene.instantiate()
+	burst.position = IsoUtils.world_to_screen(world_pos)
+	burst.z_index = 900
+	get_parent().add_child(burst)
 
 func _process_jump() -> void:
 	if Input.is_action_just_pressed(_jump_action):
@@ -575,10 +773,12 @@ func _set_action_state(new_state: ActionState) -> void:
 		_current_state.enter(self)
 
 func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node = null) -> void:
-	if _is_homing_protected() and not _is_homing_damage_hazardous(source):
+	if (_is_homing_protected() or _is_dash_protected()) and not _is_homing_damage_hazardous(source):
 		return
 	if invuln_timer > 0.0 or is_dead:
 		return
+	if is_dashing:
+		_end_dash()
 	_play_sfx("player_hit")
 	GameState.request_camera_shake(2.2, 0.14)
 	hp -= amount
@@ -599,6 +799,9 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node =
 
 func _is_homing_protected() -> bool:
 	return is_homing or homing_invuln_timer > 0.0
+
+func _is_dash_protected() -> bool:
+	return is_dashing
 
 func _is_homing_damage_hazardous(source: Node) -> bool:
 	if source and _is_node_hazardous(source):
@@ -626,6 +829,7 @@ func _is_node_hazardous(node: Node) -> bool:
 
 func _die() -> void:
 	is_dead = true
+	_end_dash()
 	_set_action_state(ActionState.DEAD)
 	hp = 0
 	_update_health_bar()
@@ -652,6 +856,7 @@ func _on_death_respawn() -> void:
 
 	# Respawn at checkpoint
 	is_dead = false
+	_end_dash()
 	hp = max_hp
 	_update_health_bar()
 	invuln_timer = invuln_time * 2.0
@@ -675,6 +880,14 @@ func _on_death_respawn() -> void:
 				set_world_pos(loader.last_checkpoint_pos)
 
 func _update_timers(delta: float) -> void:
+	if Input.is_action_just_pressed(_jump_action):
+		dash_jump_buffer = dash_input_window
+	if Input.is_action_just_pressed(_attack_action):
+		dash_attack_buffer = dash_input_window
+	if dash_jump_buffer > 0.0:
+		dash_jump_buffer = maxf(dash_jump_buffer - delta, 0.0)
+	if dash_attack_buffer > 0.0:
+		dash_attack_buffer = maxf(dash_attack_buffer - delta, 0.0)
 	if invuln_timer > 0.0:
 		invuln_timer = maxf(invuln_timer - delta, 0.0)
 	if hit_flash_timer > 0.0:
@@ -699,6 +912,8 @@ func _update_health_bar() -> void:
 		health_bar.set_values(hp, max_hp)
 
 func _process_attack(delta: float) -> void:
+	if is_dashing:
+		return
 	# Timers
 	if combo_timer > 0.0:
 		combo_timer = maxf(combo_timer - delta, 0.0)

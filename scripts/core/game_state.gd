@@ -1,6 +1,8 @@
 extends Node
 
 const SAVE_PATH := "user://savegame.json"
+const SAVE_TMP_PATH := "user://savegame.tmp.json"
+const SAVE_VERSION := 2
 
 var player_count: int = 2
 var last_scene_path: String = "res://scenes/level/test_level.tscn"
@@ -15,6 +17,8 @@ var coins: int = 0
 var score: int = 0
 var keys: int = 0
 var unlocks: Dictionary = {"world_1_max_level": 1}
+var level_runtime_state: Dictionary = {}  # "level_id" -> Dictionary payload
+var continue_level_override: int = 0
 
 # Signals for HUD updates
 signal lives_changed(new_lives: int)
@@ -48,6 +52,11 @@ func continue_game() -> void:
 	if not load_progress():
 		start_game(1)
 		return
+	if continue_level_override > 0:
+		var target_level: int = continue_level_override
+		continue_level_override = 0
+		load_level(current_world, target_level)
+		return
 	if current_level == 0:
 		load_boss_level(current_world)
 	else:
@@ -59,6 +68,7 @@ func load_level(world: int, level: int) -> void:
 		level = unlocked_level
 	current_world = world
 	current_level = level
+	continue_level_override = 0
 	last_scene_path = "res://scenes/level/level.tscn"
 	get_tree().change_scene_to_file(last_scene_path)
 	save_progress()
@@ -66,6 +76,7 @@ func load_level(world: int, level: int) -> void:
 func load_boss_level(world: int) -> void:
 	current_world = world
 	current_level = 0  # 0 indicates boss level
+	continue_level_override = 0
 	last_scene_path = "res://scenes/level/level.tscn"
 	get_tree().change_scene_to_file(last_scene_path)
 	save_progress()
@@ -128,6 +139,7 @@ func complete_current_level() -> void:
 		return
 	var next_level := mini(current_level + 1, 13)
 	_unlock_level(current_world, next_level)
+	continue_level_override = next_level
 	save_progress()
 
 func request_camera_shake(intensity: float, duration: float) -> void:
@@ -150,7 +162,20 @@ func has_save_data() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
 
 func save_progress() -> bool:
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(SAVE_TMP_PATH, FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(JSON.stringify(_build_save_data(), "\t"))
+	file.close()
+	var save_abs := ProjectSettings.globalize_path(SAVE_PATH)
+	var temp_abs := ProjectSettings.globalize_path(SAVE_TMP_PATH)
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(save_abs)
+	var move_err: int = DirAccess.rename_absolute(temp_abs, save_abs)
+	if move_err == OK:
+		return true
+	# Fallback: direct write if rename is unavailable on platform.
+	file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		return false
 	file.store_string(JSON.stringify(_build_save_data(), "\t"))
@@ -176,9 +201,10 @@ func load_progress() -> bool:
 	return true
 
 func clear_save_data() -> void:
-	if not has_save_data():
-		return
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	if has_save_data():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	if FileAccess.file_exists(SAVE_TMP_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_TMP_PATH))
 
 func _reset_progression() -> void:
 	current_world = 1
@@ -188,10 +214,33 @@ func _reset_progression() -> void:
 	score = 0
 	keys = 0
 	unlocks = {"world_1_max_level": 1}
+	level_runtime_state.clear()
+	continue_level_override = 0
 	lives_changed.emit(lives)
 	coins_changed.emit(coins)
 	score_changed.emit(score)
 	keys_changed.emit(keys)
+
+func set_level_runtime_state(level_id: String, state: Dictionary) -> void:
+	if level_id == "":
+		return
+	level_runtime_state[level_id] = state.duplicate(true)
+	save_progress()
+
+func get_level_runtime_state(level_id: String) -> Dictionary:
+	if level_id == "":
+		return {}
+	var payload: Variant = level_runtime_state.get(level_id, {})
+	if payload is Dictionary:
+		return payload.duplicate(true)
+	return {}
+
+func clear_level_runtime_state(level_id: String = "") -> void:
+	if level_id == "":
+		level_runtime_state.clear()
+	else:
+		level_runtime_state.erase(level_id)
+	save_progress()
 
 func _world_unlock_key(world: int) -> String:
 	return "world_%d_max_level" % world
@@ -204,7 +253,7 @@ func _unlock_level(world: int, level: int) -> void:
 
 func _build_save_data() -> Dictionary:
 	return {
-		"save_version": 1,
+		"save_version": SAVE_VERSION,
 		"world": current_world,
 		"level": current_level,
 		"lives": lives,
@@ -213,9 +262,12 @@ func _build_save_data() -> Dictionary:
 		"coins": coins,
 		"player_count": player_count,
 		"unlocks": unlocks.duplicate(true),
+		"runtime": level_runtime_state.duplicate(true),
+		"continue_level_override": continue_level_override,
 	}
 
 func _apply_save_data(data: Dictionary) -> void:
+	var save_version: int = int(data.get("save_version", 1))
 	current_world = int(data.get("world", 1))
 	current_level = int(data.get("level", 1))
 	lives = int(data.get("lives", 5))
@@ -228,6 +280,16 @@ func _apply_save_data(data: Dictionary) -> void:
 		unlocks = loaded_unlocks.duplicate(true)
 	else:
 		unlocks = {"world_1_max_level": 1}
+	if save_version >= 2:
+		var runtime_state: Variant = data.get("runtime", {})
+		if runtime_state is Dictionary:
+			level_runtime_state = runtime_state.duplicate(true)
+		else:
+			level_runtime_state = {}
+		continue_level_override = int(data.get("continue_level_override", 0))
+	else:
+		level_runtime_state = {}
+		continue_level_override = 0
 	lives_changed.emit(lives)
 	coins_changed.emit(coins)
 	score_changed.emit(score)

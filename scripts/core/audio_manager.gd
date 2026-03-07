@@ -22,6 +22,7 @@ func _ready() -> void:
 	_ensure_bus(BUS_UI)
 	_ensure_bus(BUS_AMBIENCE)
 	_setup_players()
+	_register_default_audio()
 
 func play_sfx(event_id: StringName, volume_db: float = 0.0) -> void:
 	var stream: AudioStream = _sfx_library.get(event_id, null)
@@ -105,3 +106,91 @@ func _ensure_bus(bus_name: String) -> void:
 	AudioServer.add_bus(AudioServer.bus_count)
 	var idx := AudioServer.bus_count - 1
 	AudioServer.set_bus_name(idx, bus_name)
+
+func _register_default_audio() -> void:
+	_register_default_sfx()
+	_register_default_music()
+
+func _register_default_sfx() -> void:
+	var sfx_defs := {
+		"jump": _make_tone_wav(460.0, 0.08, 0.35),
+		"attack": _make_tone_wav(320.0, 0.07, 0.28),
+		"attack_charge": _make_tone_wav(180.0, 0.22, 0.32),
+		"hit": _make_tone_wav(120.0, 0.06, 0.3),
+		"player_hit": _make_tone_wav(140.0, 0.08, 0.33),
+		"player_die": _make_tone_wav(90.0, 0.22, 0.38),
+		"enemy_die": _make_tone_wav(210.0, 0.12, 0.3),
+		"pickup": _make_tone_wav(820.0, 0.06, 0.22),
+		"ui_move": _make_tone_wav(700.0, 0.03, 0.15),
+		"ui_accept": _make_tone_wav(920.0, 0.06, 0.2),
+		"ui_cancel": _make_tone_wav(280.0, 0.05, 0.18),
+	}
+	for event_id in sfx_defs.keys():
+		if _sfx_library.has(event_id):
+			continue
+		register_sfx(event_id, sfx_defs[event_id])
+
+func _register_default_music() -> void:
+	if not _music_library.has("title"):
+		register_music("title", _make_music_loop([220.0, 246.94, 293.66, 246.94], 0.45, 2.0, 0.22))
+	if not _music_library.has("level"):
+		register_music("level", _make_music_loop([174.61, 196.0, 220.0, 196.0], 0.5, 2.0, 0.2))
+	if not _music_library.has("boss"):
+		register_music("boss", _make_music_loop([110.0, 123.47, 130.81, 123.47], 0.4, 2.0, 0.24))
+
+func _make_tone_wav(freq_hz: float, duration_sec: float, amplitude: float) -> AudioStreamWAV:
+	var sample_rate := 22050
+	var sample_count := maxi(int(duration_sec * sample_rate), 1)
+	var data := PackedByteArray()
+	data.resize(sample_count * 2)
+	var attack_samples := maxi(int(sample_rate * 0.01), 1)
+	var release_samples := maxi(int(sample_rate * 0.02), 1)
+	for i in range(sample_count):
+		var t := float(i) / float(sample_rate)
+		var env := 1.0
+		if i < attack_samples:
+			env = float(i) / float(attack_samples)
+		elif i >= sample_count - release_samples:
+			env = float(sample_count - i) / float(release_samples)
+		env = clampf(env, 0.0, 1.0)
+		var sample := sin(TAU * freq_hz * t) * amplitude * env
+		_write_sample_16(data, i * 2, sample)
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = sample_rate
+	wav.stereo = false
+	wav.loop_mode = AudioStreamWAV.LOOP_DISABLED
+	wav.data = data
+	return wav
+
+func _make_music_loop(notes_hz: Array[float], note_len_sec: float, total_length_sec: float, amplitude: float) -> AudioStreamWAV:
+	var sample_rate := 22050
+	var sample_count := maxi(int(total_length_sec * sample_rate), 1)
+	var note_count := maxi(notes_hz.size(), 1)
+	var data := PackedByteArray()
+	data.resize(sample_count * 2)
+	for i in range(sample_count):
+		var t := float(i) / float(sample_rate)
+		var note_index := int(floor(t / note_len_sec)) % note_count
+		var note_freq := notes_hz[note_index] if note_index < notes_hz.size() else 220.0
+		var local_t := fmod(t, note_len_sec)
+		var local_norm := local_t / maxf(note_len_sec, 0.001)
+		var env := 0.6 + 0.4 * (1.0 - local_norm)
+		var fundamental := sin(TAU * note_freq * t)
+		var harmonic := sin(TAU * (note_freq * 0.5) * t) * 0.45
+		var sample := (fundamental + harmonic) * amplitude * env
+		_write_sample_16(data, i * 2, sample)
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = sample_rate
+	wav.stereo = false
+	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	wav.loop_begin = 0
+	wav.loop_end = sample_count
+	wav.data = data
+	return wav
+
+func _write_sample_16(data: PackedByteArray, offset: int, sample: float) -> void:
+	var pcm: int = clampi(int(round(sample * 32767.0)), -32768, 32767)
+	data[offset] = pcm & 0xFF
+	data[offset + 1] = (pcm >> 8) & 0xFF

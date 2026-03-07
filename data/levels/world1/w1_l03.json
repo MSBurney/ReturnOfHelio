@@ -102,8 +102,8 @@
                 {"x": 15, "y": 7, "type": "FLOOR", "height": 4}
             ],
             "entities": [
-                {"type": "enemy", "x": 5, "y": 5},
-                {"type": "enemy", "x": 7, "y": 7},
+                {"type": "enemy", "x": 5, "y": 5, "properties": {"max_hp": 2, "chase_range": 2.4, "chase_speed": 1.6}},
+                {"type": "enemy", "x": 7, "y": 7, "properties": {"max_hp": 2, "chase_range": 2.4, "chase_speed": 1.6}},
                 {"type": "pickup", "x": 4, "y": 6},
                 {"type": "pickup", "x": 9, "y": 6},
                 {"type": "checkpoint", "x": 10, "y": 6}
@@ -217,9 +217,9 @@
                 {"x": 13, "y": 7, "type": "FLOOR", "height": 4}
             ],
             "entities": [
-                {"type": "enemy", "x": 4, "y": 4},
-                {"type": "enemy", "x": 6, "y": 8},
-                {"type": "enemy", "x": 8, "y": 6},
+                {"type": "enemy", "x": 4, "y": 4, "properties": {"max_hp": 2, "chase_range": 2.8}},
+                {"type": "enemy", "x": 6, "y": 8, "properties": {"max_hp": 2, "chase_range": 2.8}},
+                {"type": "enemy", "x": 8, "y": 6, "properties": {"max_hp": 2, "chase_range": 2.8}},
                 {"type": "pickup", "x": 5, "y": 6},
                 {"type": "pickup", "x": 9, "y": 4},
                 {"type": "goal", "x": 13, "y": 6}

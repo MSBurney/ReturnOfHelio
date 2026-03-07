@@ -13,6 +13,7 @@ func _ready() -> void:
 func show_menu() -> void:
 	visible = true
 	get_tree().paused = true
+	index = 0
 	_update_selection()
 
 func hide_menu() -> void:

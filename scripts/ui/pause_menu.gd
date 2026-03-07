@@ -13,10 +13,15 @@ func _ready() -> void:
 
 func show_menu() -> void:
 	visible = true
+	index = 0
+	if options_menu:
+		options_menu.hide_menu()
 	_update_selection()
 
 func hide_menu() -> void:
 	visible = false
+	if options_menu:
+		options_menu.hide_menu()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:

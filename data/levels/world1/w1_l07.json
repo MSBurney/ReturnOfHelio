@@ -149,7 +149,7 @@
             "entities": [
                 {"type": "enemy_buzzfly", "x": 3, "y": 5},
                 {"type": "enemy_buzzfly", "x": 7, "y": 5},
-                {"type": "enemy_hazard", "x": 10, "y": 5},
+                {"type": "enemy_hazard", "x": 10, "y": 5, "properties": {"max_hp": 2, "chase_range": 3.0, "chase_speed": 1.8}},
                 {"type": "enemy", "x": 9, "y": 4},
                 {"type": "pickup", "x": 5, "y": 4},
                 {"type": "pickup", "x": 8, "y": 5},
