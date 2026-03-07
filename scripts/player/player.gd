@@ -478,7 +478,11 @@ func _check_tile_interaction() -> void:
 						tile.start_crumble()
 						break
 
+var _door_cooldown: float = 0.0
+
 func _try_door_transition() -> void:
+	if _door_cooldown > 0.0:
+		return
 	if not level or not level.has_method("transition_to_segment"):
 		return
 	if not level is LevelLoader:
@@ -493,6 +497,7 @@ func _try_door_transition() -> void:
 	var tile_pos := Vector2i(int(floor(world_pos.x)), int(floor(world_pos.y)))
 	for conn in segment.connections:
 		if conn.door_pos == tile_pos:
+			_door_cooldown = 0.5
 			loader.transition_to_segment(conn.target_segment, conn.target_pos)
 			return
 
@@ -588,6 +593,8 @@ func _update_timers(delta: float) -> void:
 		coyote_timer = maxf(coyote_timer - delta, 0.0)
 	if jump_buffer_timer > 0.0:
 		jump_buffer_timer = maxf(jump_buffer_timer - delta, 0.0)
+	if _door_cooldown > 0.0:
+		_door_cooldown = maxf(_door_cooldown - delta, 0.0)
 
 func _update_health_bar() -> void:
 	if health_bar and health_bar.has_method("set_values"):

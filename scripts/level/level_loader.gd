@@ -18,9 +18,9 @@ const CheckpointScene := preload("res://scenes/level/checkpoint.tscn")
 var level_data: LevelData = null
 var current_segment_id: String = ""
 
-# Tile colors (Grasslands default, overridden per world)
-@export var grass_color_a: Color = Color(0.18, 0.55, 0.18)
-@export var grass_color_b: Color = Color(0.25, 0.65, 0.25)
+# Tile colors (Grasslands palette from GDD Part 7)
+@export var grass_color_a: Color = Color("2d5a2d")  # Dark grass
+@export var grass_color_b: Color = Color("4a8a4a")  # Light grass
 
 # Current segment state
 var height_map: Dictionary = {}
@@ -45,6 +45,8 @@ var player2: Node2D = null
 var boss_ref: Node2D = null
 var start_marker: Node2D = null
 var gate_marker: Node2D = null
+var goal_world_pos: Vector3 = Vector3.ZERO  # Stored directly for reliable distance checks
+var has_goal: bool = false
 
 # Game state
 var separation_timer: float = 0.0
@@ -80,6 +82,19 @@ func load_level_from_path(path: String) -> void:
 	if not level_data:
 		push_error("LevelLoader: Failed to load level from: " + path)
 		return
+
+	# Reset level-wide state
+	collected_pickups = 0
+	total_pickups = 0
+	level_complete = false
+	activated_checkpoints.clear()
+
+	# Count total pickups across ALL segments
+	for seg_id in level_data.segments:
+		var seg: LevelData.SegmentData = level_data.segments[seg_id]
+		for ent in seg.entities:
+			if ent.type == "pickup":
+				total_pickups += 1
 
 	# Load the starting segment
 	_load_segment(level_data.start_segment, level_data.start_position)
@@ -122,8 +137,7 @@ func _clear_segment() -> void:
 	boss_ref = null
 	start_marker = null
 	gate_marker = null
-	collected_pickups = 0
-	total_pickups = 0
+	has_goal = false
 	checkpoint_nodes.clear()
 
 func _generate_tiles(segment: LevelData.SegmentData) -> void:
@@ -177,10 +191,11 @@ func _spawn_entities(segment: LevelData.SegmentData) -> void:
 					pickup.setup(Vector3(pos.x + 0.5, pos.y + 0.5, ground_height + 6.0))
 				if pickup.has_signal("collected"):
 					pickup.collected.connect(_on_pickup_collected)
-				total_pickups += 1
 			"goal":
 				# Spawn gate marker at this position
 				var goal_height: float = float(height_map.get(pos, 0.0))
+				goal_world_pos = Vector3(pos.x + 0.5, pos.y + 0.5, goal_height)
+				has_goal = true
 				gate_marker = GateMarkerScene.instantiate()
 				marker_container.add_child(gate_marker)
 				gate_marker.position = IsoUtils.world_to_screen(Vector3(pos.x + 0.5, pos.y + 0.5, goal_height + 12.0))
@@ -248,15 +263,15 @@ func _check_goal() -> void:
 		return
 	_update_gate_active(true)
 
-	# Find the goal entity position
-	if not gate_marker:
+	# Goal must be in the current segment and visible
+	if not has_goal or not gate_marker:
 		return
 
-	# Check if players are near the gate
-	var gate_world := IsoUtils.screen_to_world(gate_marker.position, 0.0)
+	# Check if players are near the gate using stored world position
+	var goal_2d := Vector2(goal_world_pos.x, goal_world_pos.y)
 	var p1_pos: Vector3 = player.get_world_pos()
 	var p2_pos: Vector3 = player2.get_world_pos() if player2 else p1_pos
-	if Vector2(p1_pos.x, p1_pos.y).distance_to(Vector2(gate_world.x, gate_world.y)) <= 1.5 and Vector2(p2_pos.x, p2_pos.y).distance_to(Vector2(gate_world.x, gate_world.y)) <= 1.5:
+	if Vector2(p1_pos.x, p1_pos.y).distance_to(goal_2d) <= 1.5 and Vector2(p2_pos.x, p2_pos.y).distance_to(goal_2d) <= 1.5:
 		level_complete = true
 		if end_screen and end_screen.has_method("show_menu"):
 			get_tree().paused = true

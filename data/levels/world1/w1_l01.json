@@ -81,7 +81,7 @@
                 {"type": "pickup", "x": 13, "y": 5}
             ],
             "connections": [
-                {"door_pos": [15, 5], "target_segment": "main", "target_pos": [0, 5]}
+                {"door_pos": [14, 5], "target_segment": "main", "target_pos": [1, 5]}
             ]
         },
         {
@@ -90,7 +90,7 @@
             "height": 12,
             "tiles": [
                 {"x": 0, "y": 4, "type": "FLOOR", "height": 0},
-                {"x": 0, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 0, "y": 5, "type": "DOOR_OPEN", "height": 0},
                 {"x": 0, "y": 6, "type": "FLOOR", "height": 0},
                 {"x": 1, "y": 4, "type": "FLOOR", "height": 0},
                 {"x": 1, "y": 5, "type": "FLOOR", "height": 0},
@@ -161,7 +161,7 @@
                 {"type": "goal", "x": 13, "y": 5}
             ],
             "connections": [
-                {"door_pos": [0, 5], "target_segment": "start", "target_pos": [14, 5]}
+                {"door_pos": [0, 5], "target_segment": "start", "target_pos": [13, 5]}
             ]
         }
     ]

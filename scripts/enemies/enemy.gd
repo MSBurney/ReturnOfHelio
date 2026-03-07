@@ -5,10 +5,11 @@ extends IsoEntity
 @export var float_height: float = 16.0  # Height above ground
 @export var bob_amplitude: float = 2.0  # Vertical bob amount
 @export var bob_speed: float = 2.0  # Bob cycle speed
-@export var max_hp: int = 3
+@export var max_hp: int = 1  # Nibbler = 1 HP per GDD
 @export var invuln_time: float = 0.25
 @export var hit_flash_time: float = 0.1
 @export var knockback_strength: float = 1.5
+@export var score_value: int = 100
 
 # AI properties
 @export var patrol_distance: float = 4.0  # Tiles/world units
@@ -124,11 +125,38 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
 		world_pos.y += knock.y
 	_update_health_bar()
 	if hp <= 0:
-		queue_free()
+		_die()
 
 func stomp() -> void:
 	# Called when player jumps on enemy
 	take_damage(1)
+
+func _die() -> void:
+	# Award score
+	GameState.add_score(score_value)
+	# Death particles (simple flash effect)
+	_spawn_death_particles()
+	queue_free()
+
+func _spawn_death_particles() -> void:
+	# Create a brief visual burst at the death position
+	var screen_pos := IsoUtils.world_to_screen(world_pos)
+	for i in range(6):
+		var particle := Sprite2D.new()
+		var pimg := Image.create(3, 3, false, Image.FORMAT_RGBA8)
+		pimg.fill(Color(1.0, 0.8, 0.2, 1.0))
+		particle.texture = ImageTexture.create_from_image(pimg)
+		particle.position = screen_pos
+		particle.z_index = 1000
+		get_parent().add_child(particle)
+		# Scatter particles outward using a tween
+		var angle := float(i) / 6.0 * TAU
+		var target_pos := screen_pos + Vector2(cos(angle), sin(angle)) * 12.0
+		var tween := particle.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(particle, "position", target_pos, 0.3)
+		tween.tween_property(particle, "modulate:a", 0.0, 0.3)
+		tween.chain().tween_callback(particle.queue_free)
 
 func _update_ai(delta: float) -> void:
 	var player := _find_chase_target()

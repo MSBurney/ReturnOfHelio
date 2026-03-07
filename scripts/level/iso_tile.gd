@@ -136,6 +136,9 @@ func _get_side_color() -> Color:
 			return Color(0.5, 0.7, 0.85)
 		TileTypes.TileType.BOUNCE:
 			return Color(0.6, 0.5, 0.05)
+		TileTypes.TileType.FLOOR, TileTypes.TileType.CHECKPOINT, TileTypes.TileType.COLLECTIBLE:
+			# Dirt/earth side for natural tiles
+			return Color("4a3420")
 		_:
 			return side_color
 

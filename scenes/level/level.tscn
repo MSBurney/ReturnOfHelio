@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/level/level_loader.gd" id="1_level"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
@@ -6,17 +6,13 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/end_screen.tscn" id="4_end"]
 [ext_resource type="PackedScene" path="res://scenes/ui/game_over_screen.tscn" id="5_gameover"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="6_hud"]
+[ext_resource type="Script" path="res://scripts/level/parallax_bg.gd" id="7_parallax"]
 
 [node name="Level" type="Node2D"]
 script = ExtResource("1_level")
 
-[node name="Background" type="ColorRect" parent="."]
-z_index = -100
-offset_left = -500.0
-offset_top = -500.0
-offset_right = 500.0
-offset_bottom = 500.0
-color = Color(0.1, 0.15, 0.25, 1)
+[node name="ParallaxBG" type="ParallaxBackground" parent="."]
+script = ExtResource("7_parallax")
 
 [node name="Tiles" type="Node2D" parent="."]
 
