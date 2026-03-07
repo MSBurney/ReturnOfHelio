@@ -39,6 +39,7 @@ var action_state: ActionState = ActionState.GROUNDED
 @export var invuln_time: float = 0.5
 @export var hit_flash_time: float = 0.12
 @export var knockback_strength: float = 2.0  # World units per second
+@export var homing_post_hit_invuln_time: float = 0.5  # Extra invulnerability after homing collision
 
 var velocity: Vector3 = Vector3.ZERO
 
@@ -84,6 +85,7 @@ var jump_buffer_timer: float = 0.0
 var hp: int = 0
 var invuln_timer: float = 0.0
 var hit_flash_timer: float = 0.0
+var homing_invuln_timer: float = 0.0
 
 # References
 @onready var sprite: Sprite2D = $Sprite
@@ -377,6 +379,7 @@ func _end_homing_attack(hit_enemy: bool) -> void:
 	homing_target = null
 	
 	if hit_enemy:
+		homing_invuln_timer = maxf(homing_invuln_timer, homing_post_hit_invuln_time)
 		# Bounce upward after hitting enemy
 		velocity.z = homing_bounce_velocity
 		# Re-enable double jump/homing for chaining attacks
@@ -523,7 +526,7 @@ func _set_action_state(new_state: ActionState) -> void:
 	action_state = new_state
 
 func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node = null) -> void:
-	if is_homing and not _is_homing_damage_hazardous(source):
+	if _is_homing_protected() and not _is_homing_damage_hazardous(source):
 		return
 	if invuln_timer > 0.0 or is_dead:
 		return
@@ -540,6 +543,9 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node =
 		_die()
 		return
 	_update_health_bar()
+
+func _is_homing_protected() -> bool:
+	return is_homing or homing_invuln_timer > 0.0
 
 func _is_homing_damage_hazardous(source: Node) -> bool:
 	if source and _is_node_hazardous(source):
@@ -625,6 +631,8 @@ func _update_timers(delta: float) -> void:
 		jump_buffer_timer = maxf(jump_buffer_timer - delta, 0.0)
 	if _door_cooldown > 0.0:
 		_door_cooldown = maxf(_door_cooldown - delta, 0.0)
+	if homing_invuln_timer > 0.0:
+		homing_invuln_timer = maxf(homing_invuln_timer - delta, 0.0)
 
 func _update_health_bar() -> void:
 	if health_bar and health_bar.has_method("set_values"):
