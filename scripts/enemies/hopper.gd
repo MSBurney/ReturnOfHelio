@@ -28,7 +28,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_update_timers(delta)
-	ground_level = _ground_height_at(world_pos.x, world_pos.y)
+	ground_level = _sample_ground_level_for_state()
 
 	if is_jumping:
 		# Apply gravity
@@ -53,6 +53,15 @@ func _process(delta: float) -> void:
 
 	_update_screen_position()
 	_update_depth_sort()
+
+func _sample_ground_level_for_state() -> float:
+	var sampled_ground: float = _ground_height_at(world_pos.x, world_pos.y)
+	# While airborne, treat PIT tiles as pass-through so jump arcs can clear pits.
+	if is_jumping and level and level.has_method("get_tile_type_at"):
+		var tile_type: TileTypes.TileType = level.get_tile_type_at(world_pos.x, world_pos.y)
+		if tile_type == TileTypes.TileType.PIT and level.has_method("get_raw_tile_height_at"):
+			sampled_ground = level.get_raw_tile_height_at(world_pos.x, world_pos.y)
+	return sampled_ground
 
 func _jump() -> void:
 	is_jumping = true

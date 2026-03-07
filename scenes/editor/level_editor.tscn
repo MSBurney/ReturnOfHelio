@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/editor/level_editor.gd" id="1_editor"]
+[ext_resource type="Script" path="res://scripts/editor/editor_tileset_generator.gd" id="2_gen"]
+
+[node name="LevelEditor" type="Node2D"]
+script = ExtResource("1_editor")
+
+[node name="TilesetGenerator" type="Node" parent="."]
+script = ExtResource("2_gen")
+
+[node name="TilesLayer" type="TileMapLayer" parent="."]
+
+[node name="HeightsLayer" type="TileMapLayer" parent="."]
+
+[node name="EntitiesLayer" type="TileMapLayer" parent="."]

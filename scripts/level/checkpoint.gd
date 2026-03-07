@@ -23,21 +23,24 @@ func activate() -> void:
 	_setup_sprite()
 
 func _setup_sprite() -> void:
-	if not sprite or sprite.texture != null:
-		# Only create once or on re-create after activation
-		pass
-	var size := 10
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var center := Vector2(4.5, 4.5)
-	var base_color := Color(0.3, 0.7, 1.0) if not activated else Color(0.2, 1.0, 0.4)
-	for y in range(size):
-		for x in range(size):
-			var d := Vector2(x, y).distance_to(center)
-			if d <= 4.5:
-				var alpha := 1.0 - (d / 4.5) * 0.5
-				var shade := 1.0 - (float(y) / size) * 0.3
-				img.set_pixel(x, y, Color(base_color.r * shade, base_color.g * shade, base_color.b * shade, alpha))
-	var tex := ImageTexture.create_from_image(img)
-	if sprite:
-		sprite.texture = tex
-	sprite.offset = Vector2(0, -5)
+	if not sprite:
+		return
+	# Flag/pole checkpoint sprite
+	var w := 10
+	var h := 16
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var flag_color := Color(0.3, 0.7, 1.0) if not activated else Color(0.2, 1.0, 0.4)
+	var pole_color := Color(0.6, 0.5, 0.4)
+	for y in range(h):
+		for x in range(w):
+			# Pole (center column, full height)
+			if x >= 4 and x <= 5 and y >= 2:
+				img.set_pixel(x, y, pole_color)
+			# Flag (triangle at top)
+			if y >= 0 and y <= 6 and x >= 5 and x < 5 + (7 - y):
+				img.set_pixel(x, y, flag_color)
+			# Base (small platform)
+			if y >= 13 and x >= 2 and x <= 7:
+				img.set_pixel(x, y, pole_color.darkened(0.2))
+	sprite.texture = ImageTexture.create_from_image(img)
+	sprite.offset = Vector2(0, -12)

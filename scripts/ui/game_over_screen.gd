@@ -23,11 +23,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("ui_up"):
 		index = (index - 1 + menu.get_child_count()) % menu.get_child_count()
+		_play_ui_sfx("ui_move")
 		_update_selection()
 	elif event.is_action_pressed("ui_down"):
 		index = (index + 1) % menu.get_child_count()
+		_play_ui_sfx("ui_move")
 		_update_selection()
 	elif event.is_action_pressed("ui_accept"):
+		_play_ui_sfx("ui_accept")
 		_activate()
 
 func _update_selection() -> void:
@@ -44,3 +47,8 @@ func _activate() -> void:
 		1:
 			get_tree().paused = false
 			GameState.go_to_main_menu()
+
+func _play_ui_sfx(event_id: String) -> void:
+	var audio := get_node_or_null("/root/AudioManager")
+	if audio and audio.has_method("play_sfx"):
+		audio.play_sfx(event_id)

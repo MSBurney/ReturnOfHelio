@@ -1,6 +1,12 @@
 class_name Player
 extends IsoEntity
 
+const GroundedStateScript := preload("res://scripts/player/states/grounded_state.gd")
+const AirborneStateScript := preload("res://scripts/player/states/airborne_state.gd")
+const HomingStateScript := preload("res://scripts/player/states/homing_state.gd")
+const HurtStateScript := preload("res://scripts/player/states/hurt_state.gd")
+const DeadStateScript := preload("res://scripts/player/states/dead_state.gd")
+
 # Movement parameters
 @export var move_speed: float = 108.0  # World units per second
 @export var acceleration: float = 80.0  # How fast we reach move_speed
@@ -14,7 +20,7 @@ extends IsoEntity
 @export var max_step_height: float = 4.0  # Maximum height we can walk up without jumping
 
 # Combat / movement state
-enum ActionState { GROUNDED, AIRBORNE, HOMING }
+enum ActionState { GROUNDED, AIRBORNE, HOMING, HURT, DEAD }
 var action_state: ActionState = ActionState.GROUNDED
 
 # Player identity / input mapping
@@ -40,6 +46,7 @@ var action_state: ActionState = ActionState.GROUNDED
 @export var hit_flash_time: float = 0.12
 @export var knockback_strength: float = 2.0  # World units per second
 @export var homing_post_hit_invuln_time: float = 0.5  # Extra invulnerability after homing collision
+@export var hurt_state_time: float = 0.12
 
 var velocity: Vector3 = Vector3.ZERO
 
@@ -86,6 +93,10 @@ var hp: int = 0
 var invuln_timer: float = 0.0
 var hit_flash_timer: float = 0.0
 var homing_invuln_timer: float = 0.0
+var hurt_state_timer: float = 0.0
+
+var _state_map: Dictionary = {}
+var _current_state: PlayerState = null
 
 # References
 @onready var sprite: Sprite2D = $Sprite
@@ -106,10 +117,12 @@ func _ready() -> void:
 	super._ready()
 	add_to_group("players")
 	_setup_input_actions()
+	_setup_states()
 	_setup_placeholder_sprites()
 	_update_screen_position()
 	hp = max_hp
 	_update_health_bar()
+	_set_action_state(ActionState.GROUNDED)
 
 func _setup_input_actions() -> void:
 	# Map actions per player
@@ -127,6 +140,25 @@ func _setup_input_actions() -> void:
 		_move_down_action = &"p2_move_down"
 		_jump_action = &"p2_jump"
 		_attack_action = &"p2_attack"
+
+func _setup_states() -> void:
+	_state_map = {
+		ActionState.GROUNDED: GroundedStateScript.new(),
+		ActionState.AIRBORNE: AirborneStateScript.new(),
+		ActionState.HOMING: HomingStateScript.new(),
+		ActionState.HURT: HurtStateScript.new(),
+		ActionState.DEAD: DeadStateScript.new(),
+	}
+
+func _play_sfx(event_id: String) -> void:
+	var audio := get_node_or_null("/root/AudioManager")
+	if audio and audio.has_method("play_sfx"):
+		audio.play_sfx(event_id)
+
+func _emit_hit_feedback(shake_strength: float = 1.0) -> void:
+	GameState.request_hit_stop(0.04, 0.12)
+	GameState.request_camera_shake(1.4 * shake_strength, 0.12)
+	_play_sfx("hit")
 
 func _setup_placeholder_sprites() -> void:
 	# Create player sprite (simple colored ball)
@@ -184,12 +216,8 @@ func _physics_process(delta: float) -> void:
 	_update_timers(delta)
 	_process_attack(delta)
 	_update_hands(delta)
-	if is_homing:
-		_process_homing_attack(delta)
-	else:
-		_process_jump()
-		_process_movement(delta)
-		_process_gravity(delta)
+	if _current_state:
+		_current_state.physics_update(self, delta)
 	
 	_update_collision()
 	_check_enemy_stomp()
@@ -269,6 +297,7 @@ func _process_jump() -> void:
 			_set_action_state(ActionState.AIRBORNE)
 			can_double_jump = true  # Enable double jump after first jump
 			just_jumped = true
+			_play_sfx("jump")
 			jump_buffer_timer = 0.0
 		elif not is_on_ground:
 			# In air: homing is allowed whenever a target is valid.
@@ -281,6 +310,7 @@ func _process_jump() -> void:
 				# No target - perform double jump (once per airtime)
 				velocity.z = jump_velocity * 0.8
 				can_double_jump = false
+				_play_sfx("jump")
 				jump_buffer_timer = 0.0
 
 func _find_homing_target() -> Node2D:
@@ -339,6 +369,7 @@ func _start_homing_attack(target: Node2D) -> void:
 	# Stop horizontal momentum during homing
 	horizontal_velocity = Vector2.ZERO
 	velocity.z = 0.0
+	_play_sfx("attack")
 
 func _process_homing_attack(delta: float) -> void:
 	if not is_instance_valid(homing_target):
@@ -370,6 +401,7 @@ func _process_homing_attack(delta: float) -> void:
 			target_owner.take_damage(1)
 		elif homing_target.has_method("take_damage"):
 			homing_target.take_damage(1)
+		_emit_hit_feedback(1.0)
 		_end_homing_attack(true)
 	else:
 		# Move toward target without overshooting
@@ -431,6 +463,7 @@ func _check_enemy_stomp() -> void:
 			# Bounce and re-enable air action
 			velocity.z = stomp_bounce_velocity
 			can_double_jump = true
+			_emit_hit_feedback(0.8)
 			break
 
 func _update_collision() -> void:
@@ -453,7 +486,7 @@ func _update_collision() -> void:
 		_check_tile_interaction()
 	else:
 		is_on_ground = false
-		if not is_homing:
+		if not is_homing and action_state != ActionState.HURT:
 			_set_action_state(ActionState.AIRBORNE)
 
 func _check_tile_interaction() -> void:
@@ -465,6 +498,12 @@ func _check_tile_interaction() -> void:
 	var tile_type: int = level.get_tile_type_at(world_pos.x, world_pos.y)
 
 	match tile_type:
+		TileTypes.TileType.PIT:
+			# Fall into pit — take damage and respawn at checkpoint
+			if is_on_ground:
+				take_damage(1, Vector2.ZERO, self)
+				if level and level.has_method("_respawn_player"):
+					level._respawn_player(self)
 		TileTypes.TileType.BOUNCE:
 			velocity.z = TileTypes.get_type_bounce(TileTypes.TileType.BOUNCE)
 			is_on_ground = false
@@ -473,9 +512,11 @@ func _check_tile_interaction() -> void:
 		TileTypes.TileType.DOOR_OPEN:
 			_try_door_transition()
 		TileTypes.TileType.DOOR_CLOSED:
-			if level.has_method("use_key") or (GameState.keys > 0):
-				if GameState.use_key():
-					_try_door_transition()
+			if GameState.keys > 0 and GameState.use_key():
+				# Unlock the door in the level's type map
+				if level.has_method("unlock_door_at"):
+					level.unlock_door_at(world_pos.x, world_pos.y)
+				_try_door_transition()
 		TileTypes.TileType.CHECKPOINT:
 			if level.has_method("activate_checkpoint"):
 				level.activate_checkpoint(world_pos)
@@ -524,18 +565,27 @@ func set_world_pos(pos: Vector3) -> void:
 
 func _set_action_state(new_state: ActionState) -> void:
 	# Centralized state change for future combat logic
-	if action_state == new_state:
+	if action_state == new_state and _current_state != null:
 		return
+	if _current_state:
+		_current_state.exit(self)
 	action_state = new_state
+	_current_state = _state_map.get(new_state, null)
+	if _current_state:
+		_current_state.enter(self)
 
 func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node = null) -> void:
 	if _is_homing_protected() and not _is_homing_damage_hazardous(source):
 		return
 	if invuln_timer > 0.0 or is_dead:
 		return
+	_play_sfx("player_hit")
+	GameState.request_camera_shake(2.2, 0.14)
 	hp -= amount
 	invuln_timer = invuln_time
 	hit_flash_timer = hit_flash_time
+	hurt_state_timer = hurt_state_time
+	_set_action_state(ActionState.HURT)
 	if sprite:
 		sprite.modulate = Color(1, 1, 1, 1)
 	if source_dir.length_squared() > 0.0:
@@ -576,10 +626,12 @@ func _is_node_hazardous(node: Node) -> bool:
 
 func _die() -> void:
 	is_dead = true
+	_set_action_state(ActionState.DEAD)
 	hp = 0
 	_update_health_bar()
 	velocity = Vector3.ZERO
 	horizontal_velocity = Vector2.ZERO
+	_play_sfx("player_die")
 
 	# Brief death visual (flash)
 	if sprite:
@@ -603,6 +655,7 @@ func _on_death_respawn() -> void:
 	hp = max_hp
 	_update_health_bar()
 	invuln_timer = invuln_time * 2.0
+	hurt_state_timer = 0.0
 	velocity = Vector3.ZERO
 	horizontal_velocity = Vector2.ZERO
 	is_on_ground = true
@@ -636,6 +689,10 @@ func _update_timers(delta: float) -> void:
 		_door_cooldown = maxf(_door_cooldown - delta, 0.0)
 	if homing_invuln_timer > 0.0:
 		homing_invuln_timer = maxf(homing_invuln_timer - delta, 0.0)
+	if hurt_state_timer > 0.0:
+		hurt_state_timer = maxf(hurt_state_timer - delta, 0.0)
+		if hurt_state_timer == 0.0 and action_state == ActionState.HURT:
+			_set_action_state(ActionState.GROUNDED if is_on_ground else ActionState.AIRBORNE)
 
 func _update_health_bar() -> void:
 	if health_bar and health_bar.has_method("set_values"):
@@ -683,6 +740,7 @@ func _perform_combo_attack() -> void:
 	if attack_cooldown > 0.0:
 		return
 	
+	_play_sfx("attack")
 	combo_step += 1
 	if combo_step >= 3:
 		var damage := attack_damage * combo_third_multiplier
@@ -701,6 +759,7 @@ func _perform_charge_attack() -> void:
 	if sprite:
 		sprite.modulate = Color(1, 1, 1, 1)
 		flash_timer = 0.1
+	_play_sfx("attack_charge")
 	
 	var target := _find_attack_target(attack_range * 1.5, 90.0)
 	if target and target.has_method("get_world_pos"):
@@ -751,6 +810,7 @@ func _apply_cone_damage(damage: int) -> void:
 			var target_pos: Vector3 = best_target.get_world_pos()
 			var dir := Vector2(target_pos.x - world_pos.x, target_pos.y - world_pos.y)
 			best_target.take_damage(damage, dir)
+		_emit_hit_feedback(0.9)
 
 func _apply_explosive_damage(damage: int, radius: float) -> void:
 	_apply_explosive_damage_at(Vector2(world_pos.x, world_pos.y), damage, radius)
@@ -759,6 +819,7 @@ func _apply_explosive_damage_at(center: Vector2, damage: int, radius: float) -> 
 	var targets := get_tree().get_nodes_in_group("hurtboxes")
 	if targets.is_empty():
 		targets = get_tree().get_nodes_in_group("enemies")
+	var hit_any: bool = false
 	
 	for target in targets:
 		if not is_instance_valid(target):
@@ -774,9 +835,13 @@ func _apply_explosive_damage_at(center: Vector2, damage: int, radius: float) -> 
 				if owner_body and owner_body.has_method("take_damage"):
 					var dir := Vector2(target_pos.x - center.x, target_pos.y - center.y)
 					owner_body.take_damage(damage, dir)
+					hit_any = true
 			elif target.has_method("take_damage"):
 				var dir := Vector2(target_pos.x - center.x, target_pos.y - center.y)
 				target.take_damage(damage, dir)
+				hit_any = true
+	if hit_any:
+		_emit_hit_feedback(1.2)
 
 func _start_hand_attack(hand_index: int, trigger_explosion: bool) -> void:
 	if hand_index < 0 or hand_index >= hand_attack_time.size():

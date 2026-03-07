@@ -42,6 +42,8 @@ var separation_active: bool = false
 var collected_pickups: int = 0
 var total_pickups: int = 0
 var level_complete: bool = false
+var _camera_shake_time: float = 0.0
+var _camera_shake_intensity: float = 0.0
 
 # Goal/loop tuning
 @export var goal_tile: Vector2i = Vector2i(12, 12)
@@ -52,6 +54,8 @@ var level_complete: bool = false
 @export var separation_delay: float = 0.8
 
 func _ready() -> void:
+	if not GameState.camera_shake_requested.is_connected(_on_camera_shake_requested):
+		GameState.camera_shake_requested.connect(_on_camera_shake_requested)
 	_generate_height_map()
 	_generate_tiles()
 	_spawn_enemies()
@@ -263,6 +267,7 @@ func _check_goal() -> void:
 	var p2_pos: Vector3 = player2.get_world_pos() if player2 else p1_pos
 	if Vector2(p1_pos.x, p1_pos.y).distance_to(goal_pos) <= 1.75 or Vector2(p2_pos.x, p2_pos.y).distance_to(goal_pos) <= 1.75:
 		level_complete = true
+		GameState.complete_current_level()
 		if end_screen and end_screen.has_method("show_menu"):
 			get_tree().paused = true
 			end_screen.show_menu()
@@ -341,6 +346,7 @@ func _process(_delta: float) -> void:
 			camera.position = (player.position + player2.position) * 0.5
 		else:
 			camera.position = player.position
+		_apply_camera_shake(_delta)
 	
 	_update_coop_separation(_delta)
 	_check_goal()
@@ -392,3 +398,15 @@ func is_solid_at(world_pos: Vector3) -> bool:
 func is_step_blocked(world_x: float, world_y: float, current_z: float, max_step: float) -> bool:
 	var ground_height := get_tile_height_at(world_x, world_y)
 	return ground_height > current_z + max_step
+
+func _on_camera_shake_requested(intensity: float, duration: float) -> void:
+	_camera_shake_intensity = maxf(_camera_shake_intensity, intensity)
+	_camera_shake_time = maxf(_camera_shake_time, duration)
+
+func _apply_camera_shake(delta: float) -> void:
+	if _camera_shake_time <= 0.0:
+		return
+	_camera_shake_time = maxf(_camera_shake_time - delta, 0.0)
+	var offset := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * _camera_shake_intensity
+	camera.position += offset
+	_camera_shake_intensity = maxf(_camera_shake_intensity - (delta * 18.0), 0.0)

@@ -9,7 +9,11 @@ const EnemyScene := preload("res://scenes/enemies/enemy.tscn")
 const PlayerScene := preload("res://scenes/player/player.tscn")
 const PickupScene := preload("res://scenes/level/pickup.tscn")
 const BossScene := preload("res://scenes/enemies/boss.tscn")
+const KingRibbitScene := preload("res://scenes/enemies/king_ribbit.tscn")
 const GroundEnemyScene := preload("res://scenes/enemies/ground_enemy.tscn")
+const HopperScene := preload("res://scenes/enemies/hopper.tscn")
+const BuzzflyScene := preload("res://scenes/enemies/buzzfly.tscn")
+const HazardEnemyScene := preload("res://scenes/enemies/hazard_enemy.tscn")
 const StartMarkerScene := preload("res://scenes/level/start_marker.tscn")
 const GateMarkerScene := preload("res://scenes/level/gate_marker.tscn")
 const CheckpointScene := preload("res://scenes/level/checkpoint.tscn")
@@ -57,6 +61,7 @@ var level_complete: bool = false
 var collected_keys: int = 0
 var checkpoint_nodes: Array[Node2D] = []
 var activated_checkpoints: Dictionary = {}  # "segment_id:x,y" -> true
+var removed_entities: Dictionary = {}  # "segment_id:type:x,y" -> true
 
 # Co-op tether
 @export var max_player_separation: float = 12.0
@@ -66,15 +71,23 @@ var activated_checkpoints: Dictionary = {}  # "segment_id:x,y" -> true
 var last_checkpoint_pos: Vector3 = Vector3.ZERO
 var last_checkpoint_segment: String = ""
 
+var _camera_shake_time: float = 0.0
+var _camera_shake_intensity: float = 0.0
+
 # Level path (set before _ready or via load_level)
 @export var level_json_path: String = ""
 
 func _ready() -> void:
+	if not GameState.camera_shake_requested.is_connected(_on_camera_shake_requested):
+		GameState.camera_shake_requested.connect(_on_camera_shake_requested)
 	if level_json_path != "":
 		load_level_from_path(level_json_path)
 	else:
-		# Default: load world 1 level 1
-		var path := LevelData.get_level_path(GameState.current_world, GameState.current_level)
+		var path: String
+		if GameState.current_level == 0:
+			path = LevelData.get_boss_level_path(GameState.current_world)
+		else:
+			path = LevelData.get_level_path(GameState.current_world, GameState.current_level)
 		load_level_from_path(path)
 
 func load_level_from_path(path: String) -> void:
@@ -88,6 +101,7 @@ func load_level_from_path(path: String) -> void:
 	total_pickups = 0
 	level_complete = false
 	activated_checkpoints.clear()
+	removed_entities.clear()
 
 	# Count total pickups across ALL segments
 	for seg_id in level_data.segments:
@@ -169,17 +183,50 @@ func _spawn_entities(segment: LevelData.SegmentData) -> void:
 		var pos := Vector2i(entity_entry.x, entity_entry.y)
 		var ground_height: float = float(height_map.get(pos, 0.0))
 
+		# Skip entities that were already removed (collected/killed)
+		var entity_key := "%s:%s:%d,%d" % [current_segment_id, entity_entry.type, pos.x, pos.y]
+		if removed_entities.has(entity_key):
+			continue
+
 		match entity_entry.type:
 			"enemy", "enemy_nibbler":
 				var enemy: Node2D = EnemyScene.instantiate()
 				enemy_container.add_child(enemy)
 				enemy.setup(pos.x, pos.y, ground_height)
+				if enemy.has_signal("died"):
+					enemy.died.connect(_on_enemy_died.bind(entity_key))
 			"ground_enemy":
 				var ground_enemy: Node2D = GroundEnemyScene.instantiate()
 				enemy_container.add_child(ground_enemy)
 				ground_enemy.setup(pos.x, pos.y, ground_height)
+				if ground_enemy.has_signal("died"):
+					ground_enemy.died.connect(_on_enemy_died.bind(entity_key))
+			"enemy_hopper":
+				var hopper: Node2D = HopperScene.instantiate()
+				enemy_container.add_child(hopper)
+				hopper.setup(pos.x, pos.y, ground_height)
+				if hopper.has_signal("died"):
+					hopper.died.connect(_on_enemy_died.bind(entity_key))
+			"enemy_buzzfly":
+				var buzzfly: Node2D = BuzzflyScene.instantiate()
+				enemy_container.add_child(buzzfly)
+				buzzfly.setup(pos.x, pos.y, ground_height)
+				if buzzfly.has_signal("died"):
+					buzzfly.died.connect(_on_enemy_died.bind(entity_key))
+			"enemy_hazard":
+				var hazard_enemy: Node2D = HazardEnemyScene.instantiate()
+				enemy_container.add_child(hazard_enemy)
+				hazard_enemy.setup(pos.x, pos.y, ground_height)
+				if hazard_enemy.has_signal("died"):
+					hazard_enemy.died.connect(_on_enemy_died.bind(entity_key))
 			"boss":
 				var boss: Node2D = BossScene.instantiate()
+				boss_container.add_child(boss)
+				boss.setup(pos.x, pos.y, ground_height)
+				boss.set("active", false)
+				boss_ref = boss
+			"boss_king_ribbit":
+				var boss: Node2D = KingRibbitScene.instantiate()
 				boss_container.add_child(boss)
 				boss.setup(pos.x, pos.y, ground_height)
 				boss.set("active", false)
@@ -190,7 +237,7 @@ func _spawn_entities(segment: LevelData.SegmentData) -> void:
 				if pickup.has_method("setup"):
 					pickup.setup(Vector3(pos.x + 0.5, pos.y + 0.5, ground_height + 6.0))
 				if pickup.has_signal("collected"):
-					pickup.collected.connect(_on_pickup_collected)
+					pickup.collected.connect(_on_pickup_collected.bind(entity_key))
 			"goal":
 				# Spawn gate marker at this position
 				var goal_height: float = float(height_map.get(pos, 0.0))
@@ -210,6 +257,15 @@ func _spawn_entities(segment: LevelData.SegmentData) -> void:
 				if activated_checkpoints.has(cp_key):
 					cp.activate()
 				checkpoint_nodes.append(cp)
+			"key":
+				var key_pickup: Node2D = PickupScene.instantiate()
+				pickup_container.add_child(key_pickup)
+				if key_pickup.has_method("setup"):
+					key_pickup.setup(Vector3(pos.x + 0.5, pos.y + 0.5, ground_height + 6.0))
+				if key_pickup.has_method("set_as_key"):
+					key_pickup.set_as_key()
+				if key_pickup.has_signal("collected"):
+					key_pickup.collected.connect(_on_key_collected.bind(entity_key))
 
 func _setup_player(start_tile: Vector2i) -> void:
 	if player:
@@ -240,9 +296,19 @@ func _spawn_markers(start_tile: Vector2i) -> void:
 	start_marker.position = IsoUtils.world_to_screen(Vector3(start_tile.x + 0.5, start_tile.y + 0.5, start_height + 6.0))
 	start_marker.z_index = 200
 
-func _on_pickup_collected(value: int) -> void:
+func _on_pickup_collected(value: int, entity_key: String = "") -> void:
 	collected_pickups += value
+	if entity_key != "":
+		removed_entities[entity_key] = true
 	_update_pickup_label()
+
+func _on_key_collected(_value: int, entity_key: String = "") -> void:
+	GameState.add_keys(1)
+	if entity_key != "":
+		removed_entities[entity_key] = true
+
+func _on_enemy_died(entity_key: String) -> void:
+	removed_entities[entity_key] = true
 
 func _update_pickup_label() -> void:
 	if pickup_label:
@@ -256,29 +322,36 @@ func _update_gate_active(active: bool) -> void:
 		gate_marker.visible = active
 
 func _check_goal() -> void:
-	if level_complete or total_pickups == 0:
+	if level_complete:
+		return
+	# Boss level: goal activates when boss is dead
+	if total_pickups == 0 and has_goal and (boss_ref == null or not is_instance_valid(boss_ref)):
+		_update_gate_active(true)
+		_check_player_at_goal()
+		return
+	if total_pickups == 0:
 		return
 	if collected_pickups < total_pickups:
 		_update_gate_active(false)
 		return
 	_update_gate_active(true)
+	_check_player_at_goal()
 
-	# Goal must be in the current segment and visible
+func _check_player_at_goal() -> void:
 	if not has_goal or not gate_marker:
 		return
-
-	# Check if players are near the gate using stored world position
 	var goal_2d := Vector2(goal_world_pos.x, goal_world_pos.y)
 	var p1_pos: Vector3 = player.get_world_pos()
 	var p2_pos: Vector3 = player2.get_world_pos() if player2 else p1_pos
 	if Vector2(p1_pos.x, p1_pos.y).distance_to(goal_2d) <= 1.75 or Vector2(p2_pos.x, p2_pos.y).distance_to(goal_2d) <= 1.75:
 		level_complete = true
+		GameState.complete_current_level()
 		if end_screen and end_screen.has_method("show_menu"):
 			get_tree().paused = true
 			end_screen.show_menu()
 
 func _update_boss_trigger() -> void:
-	if not boss_ref or not player:
+	if not boss_ref or not is_instance_valid(boss_ref) or not player:
 		return
 	if boss_ref.has_method("activate") and boss_ref.has_method("get_world_pos"):
 		var boss_pos: Vector3 = boss_ref.get_world_pos()
@@ -329,6 +402,7 @@ func _process(delta: float) -> void:
 			camera.position = (player.position + player2.position) * 0.5
 		else:
 			camera.position = player.position
+		_apply_camera_shake(delta)
 
 	_update_coop_separation(delta)
 	_check_goal()
@@ -385,6 +459,7 @@ func activate_checkpoint(pos: Vector3) -> void:
 	activated_checkpoints[cp_key] = true
 	last_checkpoint_pos = pos
 	last_checkpoint_segment = current_segment_id
+	GameState.save_progress()
 	# Activate visual checkpoint node
 	for cp in checkpoint_nodes:
 		if cp is Checkpoint and cp.tile_pos == tile_pos:
@@ -401,11 +476,36 @@ func get_tile_height_at(world_x: float, world_y: float) -> float:
 		return -1000.0
 	if not height_map.has(tile_pos):
 		return -1000.0  # No tile = void
+	# PIT tiles act as holes — return very low height
+	var tile_type: TileTypes.TileType = type_map.get(tile_pos, TileTypes.TileType.FLOOR)
+	if tile_type == TileTypes.TileType.PIT:
+		return -100.0
+	return float(height_map.get(tile_pos, 0.0))
+
+func get_raw_tile_height_at(world_x: float, world_y: float) -> float:
+	var tile_pos := Vector2i(int(floor(world_x)), int(floor(world_y)))
+	if tile_pos.x < 0 or tile_pos.x >= segment_width:
+		return -1000.0
+	if tile_pos.y < 0 or tile_pos.y >= segment_height:
+		return -1000.0
+	if not height_map.has(tile_pos):
+		return -1000.0
 	return float(height_map.get(tile_pos, 0.0))
 
 func get_tile_type_at(world_x: float, world_y: float) -> TileTypes.TileType:
 	var tile_pos := Vector2i(int(floor(world_x)), int(floor(world_y)))
 	return type_map.get(tile_pos, TileTypes.TileType.FLOOR)
+
+func unlock_door_at(world_x: float, world_y: float) -> void:
+	var tile_pos := Vector2i(int(floor(world_x)), int(floor(world_y)))
+	type_map[tile_pos] = TileTypes.TileType.DOOR_OPEN
+	# Update the visual tile
+	for tile in tile_container.get_children():
+		if tile.has_method("get") and tile.get("tile_x") == tile_pos.x and tile.get("tile_y") == tile_pos.y:
+			if tile.has_method("set"):
+				tile.set("tile_type", TileTypes.TileType.DOOR_OPEN)
+			tile.queue_redraw()
+			break
 
 func is_solid_at(world_pos: Vector3) -> bool:
 	var ground_height := get_tile_height_at(world_pos.x, world_pos.y)
@@ -414,3 +514,15 @@ func is_solid_at(world_pos: Vector3) -> bool:
 func is_step_blocked(world_x: float, world_y: float, current_z: float, max_step: float) -> bool:
 	var ground_height := get_tile_height_at(world_x, world_y)
 	return ground_height > current_z + max_step
+
+func _on_camera_shake_requested(intensity: float, duration: float) -> void:
+	_camera_shake_intensity = maxf(_camera_shake_intensity, intensity)
+	_camera_shake_time = maxf(_camera_shake_time, duration)
+
+func _apply_camera_shake(delta: float) -> void:
+	if _camera_shake_time <= 0.0:
+		return
+	_camera_shake_time = maxf(_camera_shake_time - delta, 0.0)
+	var offset := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * _camera_shake_intensity
+	camera.position += offset
+	_camera_shake_intensity = maxf(_camera_shake_intensity - (delta * 18.0), 0.0)

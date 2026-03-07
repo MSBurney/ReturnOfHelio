@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/effects/simple_burst.gd" id="1_burst"]
+
+[node name="PickupCollectBurst" type="Node2D"]
+script = ExtResource("1_burst")
+particle_count = 6
+speed = 30.0
+lifetime = 0.18
+size_px = 2
+burst_color = Color(1, 0.92, 0.35, 1)

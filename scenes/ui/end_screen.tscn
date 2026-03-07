@@ -22,7 +22,7 @@ offset_left = -80.0
 offset_top = -8.0
 offset_right = 80.0
 offset_bottom = 12.0
-text = "End of Game"
+text = "Level Complete!"
 horizontal_alignment = 1
 
 [node name="Menu" type="VBoxContainer" parent="Panel"]
@@ -35,8 +35,11 @@ offset_top = -8.0
 offset_right = 80.0
 offset_bottom = 36.0
 
+[node name="NextLevel" type="Label" parent="Panel/Menu"]
+text = "Next Level"
+
 [node name="Restart" type="Label" parent="Panel/Menu"]
-text = "Restart Game"
+text = "Restart Level"
 
 [node name="MainMenu" type="Label" parent="Panel/Menu"]
 text = "Main Menu"

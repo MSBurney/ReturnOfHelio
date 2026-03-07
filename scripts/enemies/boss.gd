@@ -12,6 +12,11 @@ var slam_timer: float = 0.0
 var telegraph_timer: float = 0.0
 var crash_timer: float = 0.0
 
+# Phase system
+@export var max_phases: int = 1
+var current_phase: int = 1
+var phase_thresholds: Array[float] = []  # HP percentages to trigger next phase
+
 # Crash attack
 @export var crash_interval: float = 3.0
 @export var crash_telegraph_time: float = 0.3
@@ -37,6 +42,7 @@ func _ready() -> void:
 	max_hp = max_hp * 4
 	hp = max_hp
 	_update_health_bar()
+	_setup_phase_thresholds()
 	if hurtbox and hurtbox.has_method("set"):
 		# Raise target point toward center of sprite
 		hurtbox.set("z_offset", 8.0)
@@ -78,9 +84,9 @@ func _process(delta: float) -> void:
 	_update_timers(delta)
 	_update_ai(delta)
 	
-	var ground_height := _ground_height_at(world_pos.x, world_pos.y)
+	var ground_height := _flying_ground_height_at(world_pos.x, world_pos.y)
 	base_z = ground_height + float_height
-	
+
 	if crash_state == 2 or crash_state == 3:
 		# Crash handles Z movement
 		pass
@@ -119,6 +125,29 @@ func _update_ai(delta: float) -> void:
 
 func activate() -> void:
 	active = true
+
+func _setup_phase_thresholds() -> void:
+	phase_thresholds.clear()
+	for i in range(1, max_phases):
+		phase_thresholds.append(1.0 - float(i) / float(max_phases))
+
+func _check_phase_transition() -> void:
+	if current_phase >= max_phases:
+		return
+	var hp_pct := float(hp) / float(max_hp)
+	var threshold := phase_thresholds[current_phase - 1] if current_phase - 1 < phase_thresholds.size() else 0.0
+	if hp_pct <= threshold:
+		current_phase += 1
+		_on_phase_change(current_phase)
+
+func _on_phase_change(_phase: int) -> void:
+	# Override in subclasses for phase-specific behavior
+	pass
+
+func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
+	super.take_damage(amount, source_dir)
+	if hp > 0:
+		_check_phase_transition()
 
 func _do_slam() -> void:
 	var players := get_tree().get_nodes_in_group("players")

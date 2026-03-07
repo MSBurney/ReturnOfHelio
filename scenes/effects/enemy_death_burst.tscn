@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/effects/simple_burst.gd" id="1_burst"]
+
+[node name="EnemyDeathBurst" type="Node2D"]
+script = ExtResource("1_burst")
+particle_count = 8
+speed = 48.0
+lifetime = 0.28
+size_px = 3
+burst_color = Color(1, 0.75, 0.2, 1)

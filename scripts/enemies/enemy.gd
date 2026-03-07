@@ -1,6 +1,10 @@
 class_name Enemy
 extends IsoEntity
 
+const EnemyDeathBurstScene := preload("res://scenes/effects/enemy_death_burst.tscn")
+
+signal died
+
 # Enemy properties
 @export var float_height: float = 16.0  # Height above ground
 @export var bob_amplitude: float = 2.0  # Vertical bob amount
@@ -84,11 +88,17 @@ func _setup_placeholder_sprites() -> void:
 		var tex := ImageTexture.create_from_image(img)
 		shadow.texture = tex
 
+func _flying_ground_height_at(x: float, y: float) -> float:
+	# Flying enemies use raw height to ignore PIT tiles
+	if float_height > 0.0 and level and level.has_method("get_raw_tile_height_at"):
+		return level.get_raw_tile_height_at(x, y)
+	return _ground_height_at(x, y)
+
 func _process(delta: float) -> void:
 	# Bob up and down
 	_update_timers(delta)
 	_update_ai(delta)
-	var ground_height := _ground_height_at(world_pos.x, world_pos.y)
+	var ground_height := _flying_ground_height_at(world_pos.x, world_pos.y)
 	base_z = ground_height + float_height
 	bob_time += delta * bob_speed
 	world_pos.z = base_z + sin(bob_time) * bob_amplitude
@@ -126,6 +136,7 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
 		var knock := source_dir.normalized() * knockback_strength
 		world_pos.x += knock.x
 		world_pos.y += knock.y
+	GameState.request_hit_stop(0.03, 0.2)
 	_update_health_bar()
 	if hp <= 0:
 		_die()
@@ -137,11 +148,22 @@ func stomp() -> void:
 func _die() -> void:
 	# Award score
 	GameState.add_score(score_value)
+	GameState.request_camera_shake(1.0, 0.1)
+	var audio := get_node_or_null("/root/AudioManager")
+	if audio and audio.has_method("play_sfx"):
+		audio.play_sfx("enemy_die")
+	died.emit()
 	# Death particles (simple flash effect)
 	_spawn_death_particles()
 	queue_free()
 
 func _spawn_death_particles() -> void:
+	if EnemyDeathBurstScene:
+		var burst := EnemyDeathBurstScene.instantiate()
+		burst.position = IsoUtils.world_to_screen(world_pos)
+		burst.z_index = 1000
+		get_parent().add_child(burst)
+		return
 	# Create a brief visual burst at the death position
 	var screen_pos := IsoUtils.world_to_screen(world_pos)
 	for i in range(6):

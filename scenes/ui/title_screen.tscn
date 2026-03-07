@@ -27,13 +27,16 @@ anchor_bottom = 0.4
 offset_left = -80.0
 offset_top = -10.0
 offset_right = 80.0
-offset_bottom = 70.0
+offset_bottom = 90.0
 
 [node name="Option1" type="Label" parent="Menu"]
-text = "1P Start"
+text = "Continue"
 
 [node name="Option2" type="Label" parent="Menu"]
-text = "2P Start"
+text = "1P Start"
 
 [node name="Option3" type="Label" parent="Menu"]
+text = "2P Start"
+
+[node name="Option4" type="Label" parent="Menu"]
 text = "End Game"

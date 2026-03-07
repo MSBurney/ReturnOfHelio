@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://pausemenu001"]
+[gd_scene load_steps=3 format=3 uid="uid://pausemenu001"]
 
 [ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="1_pause"]
+[ext_resource type="PackedScene" path="res://scenes/ui/options_menu.tscn" id="2_options"]
 
 [node name="PauseMenu" type="Control"]
 anchor_right = 1.0
@@ -33,13 +34,18 @@ anchor_bottom = 0.45
 offset_left = -60.0
 offset_top = -8.0
 offset_right = 60.0
-offset_bottom = 36.0
+offset_bottom = 56.0
 
 [node name="Resume" type="Label" parent="Panel/Menu"]
 text = "Resume"
+
+[node name="Options" type="Label" parent="Panel/Menu"]
+text = "Options"
 
 [node name="Restart" type="Label" parent="Panel/Menu"]
 text = "Restart Level"
 
 [node name="MainMenu" type="Label" parent="Panel/Menu"]
 text = "Main Menu"
+
+[node name="OptionsMenu" parent="." instance=ExtResource("2_options")]

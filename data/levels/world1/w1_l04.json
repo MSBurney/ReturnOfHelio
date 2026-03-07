@@ -1,0 +1,122 @@
+{
+    "level_id": "w1_l04",
+    "world": 1,
+    "level": 4,
+    "name": "Sky Chase",
+    "start_segment": "ground",
+    "start_position": [2, 6],
+    "collectibles": {
+        "keys": 0,
+        "secrets": 0,
+        "coins": 5
+    },
+    "segments": [
+        {
+            "id": "ground",
+            "width": 16,
+            "height": 12,
+            "tiles": [
+                {"x": 0, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 0, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 0, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 1, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 1, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 1, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 2, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 2, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 2, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 3, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 3, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 3, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 4, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 4, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 4, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 5, "y": 6, "type": "PIT", "height": 0},
+                {"x": 6, "y": 6, "type": "PIT", "height": 0},
+                {"x": 7, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 7, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 7, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 8, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 8, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 8, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 9, "y": 6, "type": "PIT", "height": 0},
+                {"x": 10, "y": 6, "type": "PIT", "height": 0},
+                {"x": 11, "y": 6, "type": "PIT", "height": 0},
+                {"x": 12, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 12, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 12, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 13, "y": 5, "type": "FLOOR", "height": 0},
+                {"x": 13, "y": 6, "type": "FLOOR", "height": 0},
+                {"x": 13, "y": 7, "type": "FLOOR", "height": 0},
+                {"x": 14, "y": 5, "type": "FLOOR", "height": 4},
+                {"x": 14, "y": 6, "type": "FLOOR", "height": 4},
+                {"x": 14, "y": 7, "type": "FLOOR", "height": 4},
+                {"x": 15, "y": 5, "type": "FLOOR", "height": 4},
+                {"x": 15, "y": 6, "type": "DOOR_OPEN", "height": 4},
+                {"x": 15, "y": 7, "type": "FLOOR", "height": 4}
+            ],
+            "entities": [
+                {"type": "pickup", "x": 3, "y": 6},
+                {"type": "enemy_buzzfly", "x": 5, "y": 6},
+                {"type": "enemy_buzzfly", "x": 10, "y": 6},
+                {"type": "pickup", "x": 13, "y": 6}
+            ],
+            "connections": [
+                {"door_pos": [15, 6], "target_segment": "sky", "target_pos": [1, 6]}
+            ]
+        },
+        {
+            "id": "sky",
+            "width": 16,
+            "height": 12,
+            "tiles": [
+                {"x": 0, "y": 5, "type": "FLOOR", "height": 8},
+                {"x": 0, "y": 6, "type": "DOOR_OPEN", "height": 8},
+                {"x": 0, "y": 7, "type": "FLOOR", "height": 8},
+                {"x": 1, "y": 5, "type": "FLOOR", "height": 8},
+                {"x": 1, "y": 6, "type": "FLOOR", "height": 8},
+                {"x": 1, "y": 7, "type": "FLOOR", "height": 8},
+                {"x": 2, "y": 5, "type": "FLOOR", "height": 8},
+                {"x": 2, "y": 6, "type": "FLOOR", "height": 8},
+                {"x": 2, "y": 7, "type": "FLOOR", "height": 8},
+                {"x": 3, "y": 6, "type": "PIT", "height": 0},
+                {"x": 4, "y": 6, "type": "PIT", "height": 0},
+                {"x": 5, "y": 5, "type": "FLOOR", "height": 8},
+                {"x": 5, "y": 6, "type": "FLOOR", "height": 8},
+                {"x": 6, "y": 5, "type": "FLOOR", "height": 8},
+                {"x": 6, "y": 6, "type": "FLOOR", "height": 8},
+                {"x": 7, "y": 6, "type": "PIT", "height": 0},
+                {"x": 8, "y": 6, "type": "PIT", "height": 0},
+                {"x": 9, "y": 6, "type": "PIT", "height": 0},
+                {"x": 10, "y": 5, "type": "FLOOR", "height": 12},
+                {"x": 10, "y": 6, "type": "FLOOR", "height": 12},
+                {"x": 10, "y": 7, "type": "FLOOR", "height": 12},
+                {"x": 11, "y": 5, "type": "FLOOR", "height": 12},
+                {"x": 11, "y": 6, "type": "FLOOR", "height": 12},
+                {"x": 11, "y": 7, "type": "FLOOR", "height": 12},
+                {"x": 12, "y": 6, "type": "PIT", "height": 0},
+                {"x": 13, "y": 5, "type": "FLOOR", "height": 8},
+                {"x": 13, "y": 6, "type": "FLOOR", "height": 8},
+                {"x": 13, "y": 7, "type": "FLOOR", "height": 8},
+                {"x": 14, "y": 5, "type": "FLOOR", "height": 8},
+                {"x": 14, "y": 6, "type": "FLOOR", "height": 8},
+                {"x": 14, "y": 7, "type": "FLOOR", "height": 8},
+                {"x": 15, "y": 5, "type": "FLOOR", "height": 8},
+                {"x": 15, "y": 6, "type": "FLOOR", "height": 8},
+                {"x": 15, "y": 7, "type": "FLOOR", "height": 8}
+            ],
+            "entities": [
+                {"type": "pickup", "x": 2, "y": 6},
+                {"type": "enemy_buzzfly", "x": 3, "y": 6},
+                {"type": "enemy_buzzfly", "x": 8, "y": 6},
+                {"type": "pickup", "x": 11, "y": 6},
+                {"type": "enemy_buzzfly", "x": 12, "y": 6},
+                {"type": "pickup", "x": 14, "y": 6},
+                {"type": "goal", "x": 15, "y": 6}
+            ],
+            "connections": [
+                {"door_pos": [0, 6], "target_segment": "ground", "target_pos": [14, 6]}
+            ]
+        }
+    ]
+}
