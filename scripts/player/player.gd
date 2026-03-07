@@ -7,6 +7,8 @@ const HomingStateScript := preload("res://scripts/player/states/homing_state.gd"
 const HurtStateScript := preload("res://scripts/player/states/hurt_state.gd")
 const DeadStateScript := preload("res://scripts/player/states/dead_state.gd")
 const DashSmokeBurstScene := preload("res://scenes/effects/dash_smoke_burst.tscn")
+const LandDustBurstScene := preload("res://scenes/effects/land_dust_burst.tscn")
+const JumpDustBurstScene := preload("res://scenes/effects/jump_dust_burst.tscn")
 
 # Movement parameters
 @export var move_speed: float = 108.0  # World units per second
@@ -114,6 +116,9 @@ var hurt_state_timer: float = 0.0
 
 var _state_map: Dictionary = {}
 var _current_state: PlayerState = null
+var _was_on_ground: bool = true
+var _squash_stretch: Vector2 = Vector2.ONE
+var _squash_timer: float = 0.0
 
 # References
 @onready var sprite: Sprite2D = $Sprite
@@ -176,6 +181,34 @@ func _emit_hit_feedback(shake_strength: float = 1.0) -> void:
 	GameState.request_hit_stop(0.04, 0.12)
 	GameState.request_camera_shake(1.4 * shake_strength, 0.12)
 	_play_sfx("hit")
+
+func _on_land() -> void:
+	_spawn_effect(LandDustBurstScene)
+	_apply_squash(Vector2(1.3, 0.7), 0.1)
+
+func _on_jump_effect() -> void:
+	_spawn_effect(JumpDustBurstScene)
+	_apply_squash(Vector2(0.7, 1.3), 0.1)
+
+func _spawn_effect(scene: PackedScene) -> void:
+	if not scene:
+		return
+	var burst := scene.instantiate()
+	burst.position = IsoUtils.world_to_screen(world_pos)
+	burst.z_index = 900
+	get_parent().add_child(burst)
+
+func _apply_squash(scale: Vector2, duration: float) -> void:
+	_squash_stretch = scale
+	_squash_timer = duration
+
+func _update_squash_stretch(delta: float) -> void:
+	if _squash_timer > 0.0:
+		_squash_timer = maxf(_squash_timer - delta, 0.0)
+		if _squash_timer <= 0.0:
+			_squash_stretch = Vector2.ONE
+	if sprite:
+		sprite.scale = _squash_stretch
 
 func _setup_placeholder_sprites() -> void:
 	# Create player sprite (simple colored ball)
@@ -265,7 +298,9 @@ func _physics_process(delta: float) -> void:
 	_update_screen_position()
 	_update_depth_sort()
 	_update_explosions(delta)
-	
+	_update_squash_stretch(delta)
+
+	_was_on_ground = is_on_ground
 	just_jumped = false
 
 func _process_movement(delta: float) -> void:
@@ -496,6 +531,7 @@ func _process_jump() -> void:
 			can_double_jump = true  # Enable double jump after first jump
 			just_jumped = true
 			_play_sfx("jump")
+			_on_jump_effect()
 			jump_buffer_timer = 0.0
 		elif not is_on_ground:
 			# In air: homing is allowed whenever a target is valid.
@@ -662,6 +698,7 @@ func _check_enemy_stomp() -> void:
 			velocity.z = stomp_bounce_velocity
 			can_double_jump = true
 			_emit_hit_feedback(0.8)
+			_apply_squash(Vector2(0.7, 1.3), 0.08)
 			break
 
 func _update_collision() -> void:
@@ -676,6 +713,8 @@ func _update_collision() -> void:
 
 	if world_pos.z <= ground_height:
 		world_pos.z = ground_height
+		if not _was_on_ground:
+			_on_land()
 		velocity.z = 0.0
 		is_on_ground = true
 		_set_action_state(ActionState.GROUNDED)
@@ -781,6 +820,7 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node =
 		_end_dash()
 	_play_sfx("player_hit")
 	GameState.request_camera_shake(2.2, 0.14)
+	_apply_squash(Vector2(1.4, 0.6), 0.12)
 	hp -= amount
 	invuln_timer = invuln_time
 	hit_flash_timer = hit_flash_time

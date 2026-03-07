@@ -1,7 +1,1 @@
-res://scripts/player/player.gd
-res://scenes/player/player.tscn
-res://scripts/core/audio_manager.gd
-res://scripts/core/game_state.gd
-res://scripts/level/level_loader.gd
-res://scripts/ui/end_screen.gd
-res://scripts/ui/pause_menu.gd
+res://scenes/level/test_level.tscn

@@ -40,6 +40,8 @@ func _process(delta: float) -> void:
 			velocity_z = 0.0
 			is_jumping = false
 			jump_timer = randf_range(jump_interval_min, jump_interval_max)
+			_squash_stretch = Vector2(1.3, 0.7)
+			_squash_timer = 0.1
 	else:
 		world_pos.z = ground_level
 		jump_timer -= delta
@@ -66,6 +68,8 @@ func _sample_ground_level_for_state() -> float:
 func _jump() -> void:
 	is_jumping = true
 	velocity_z = jump_velocity
+	_squash_stretch = Vector2(0.7, 1.3)
+	_squash_timer = 0.1
 
 	# Jump toward nearest player if in range
 	var player := _find_chase_target()

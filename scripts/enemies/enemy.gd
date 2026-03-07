@@ -32,6 +32,8 @@ var patrol_forward: bool = true
 var invuln_timer: float = 0.0
 var hit_flash_timer: float = 0.0
 var contact_timer: float = 0.0
+var _squash_stretch: Vector2 = Vector2.ONE
+var _squash_timer: float = 0.0
 
 # References
 @onready var sprite: Sprite2D = $Sprite
@@ -137,6 +139,8 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
 		world_pos.x += knock.x
 		world_pos.y += knock.y
 	GameState.request_hit_stop(0.03, 0.2)
+	_squash_stretch = Vector2(1.4, 0.6)
+	_squash_timer = 0.1
 	_update_health_bar()
 	if hp <= 0:
 		_die()
@@ -153,9 +157,16 @@ func _die() -> void:
 	if audio and audio.has_method("play_sfx"):
 		audio.play_sfx("enemy_die")
 	died.emit()
-	# Death particles (simple flash effect)
+	# Death particles and score popup
 	_spawn_death_particles()
+	_spawn_score_popup()
 	queue_free()
+
+func _spawn_score_popup() -> void:
+	if score_value <= 0:
+		return
+	var screen_pos := IsoUtils.world_to_screen(world_pos)
+	ScorePopup.spawn(get_parent(), screen_pos, score_value)
 
 func _spawn_death_particles() -> void:
 	if EnemyDeathBurstScene:
@@ -267,6 +278,12 @@ func _update_timers(delta: float) -> void:
 			sprite.modulate = Color(1, 1, 1, 1)
 	if contact_timer > 0.0:
 		contact_timer = maxf(contact_timer - delta, 0.0)
+	if _squash_timer > 0.0:
+		_squash_timer = maxf(_squash_timer - delta, 0.0)
+		if _squash_timer <= 0.0:
+			_squash_stretch = Vector2.ONE
+		if sprite:
+			sprite.scale = _squash_stretch
 
 func _update_health_bar() -> void:
 	if health_bar and health_bar.has_method("set_values"):

@@ -40,5 +40,9 @@ offset_bottom = 24.0
 text = "Pickups: 0 / 0"
 
 [node name="PauseMenu" parent="UI" instance=ExtResource("3_pause")]
+layout_mode = 3
+anchors_preset = 15
 
 [node name="EndScreen" parent="UI" instance=ExtResource("4_end")]
+layout_mode = 3
+anchors_preset = 15

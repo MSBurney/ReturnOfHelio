@@ -56,6 +56,11 @@ func _process(delta: float) -> void:
 		if is_instance_valid(p):
 			_try_contact_damage(p)
 
+	# Wing flap via x-scale oscillation
+	if sprite:
+		var flap := 0.8 + sin(bob_time * 4.0) * 0.2
+		sprite.scale = Vector2(flap, 1.0) if _squash_timer <= 0.0 else _squash_stretch
+
 	_update_screen_position()
 	_update_depth_sort()
 
