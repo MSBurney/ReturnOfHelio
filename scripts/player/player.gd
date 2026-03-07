@@ -35,7 +35,7 @@ var action_state: ActionState = ActionState.GROUNDED
 @export var attack_visual_time: float = 0.18
 
 # Health/feedback
-@export var max_hp: int = 5
+@export var max_hp: int = 3
 @export var invuln_time: float = 0.5
 @export var hit_flash_time: float = 0.12
 @export var knockback_strength: float = 2.0  # World units per second
@@ -48,6 +48,7 @@ var last_move_dir: Vector2 = Vector2.DOWN
 
 # State tracking
 var is_on_ground: bool = true
+var is_dead: bool = false
 var can_double_jump: bool = false  # Restored: tracks if double jump is available
 var is_homing: bool = false
 var homing_target: Node2D = null
@@ -176,6 +177,8 @@ func _create_hand_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 func _physics_process(delta: float) -> void:
+	if is_dead:
+		return
 	_update_timers(delta)
 	_process_attack(delta)
 	_update_hands(delta)
@@ -423,13 +426,13 @@ func _check_enemy_stomp() -> void:
 func _update_collision() -> void:
 	if just_jumped:
 		return
-	
+
 	# Don't do ground collision during homing attack
 	if is_homing:
 		return
-	
+
 	var ground_height: float = _ground_height_at(world_pos.x, world_pos.y)
-	
+
 	if world_pos.z <= ground_height:
 		world_pos.z = ground_height
 		velocity.z = 0.0
@@ -437,10 +440,61 @@ func _update_collision() -> void:
 		_set_action_state(ActionState.GROUNDED)
 		can_double_jump = false  # Reset double jump when landing
 		coyote_timer = coyote_time
+		_check_tile_interaction()
 	else:
 		is_on_ground = false
 		if not is_homing:
 			_set_action_state(ActionState.AIRBORNE)
+
+func _check_tile_interaction() -> void:
+	if not level:
+		return
+	# Check tile type at current position
+	if not level.has_method("get_tile_type_at"):
+		return
+	var tile_type: int = level.get_tile_type_at(world_pos.x, world_pos.y)
+
+	match tile_type:
+		TileTypes.TileType.BOUNCE:
+			velocity.z = TileTypes.get_type_bounce(TileTypes.TileType.BOUNCE)
+			is_on_ground = false
+			_set_action_state(ActionState.AIRBORNE)
+			can_double_jump = true
+		TileTypes.TileType.DOOR_OPEN:
+			_try_door_transition()
+		TileTypes.TileType.DOOR_CLOSED:
+			if level.has_method("use_key") or (GameState.keys > 0):
+				if GameState.use_key():
+					_try_door_transition()
+		TileTypes.TileType.CHECKPOINT:
+			if level.has_method("activate_checkpoint"):
+				level.activate_checkpoint(world_pos)
+		TileTypes.TileType.CRUMBLE:
+			# Find the tile node and start crumbling
+			if level.has_node("Tiles"):
+				var tile_pos := Vector2i(int(floor(world_pos.x)), int(floor(world_pos.y)))
+				for tile in level.get_node("Tiles").get_children():
+					if tile is IsoTile and tile.tile_x == tile_pos.x and tile.tile_y == tile_pos.y:
+						tile.start_crumble()
+						break
+
+func _try_door_transition() -> void:
+	if not level or not level.has_method("transition_to_segment"):
+		return
+	if not level is LevelLoader:
+		return
+	var loader: LevelLoader = level as LevelLoader
+	if not loader.level_data:
+		return
+	var segment_id := loader.current_segment_id
+	if not loader.level_data.segments.has(segment_id):
+		return
+	var segment: LevelData.SegmentData = loader.level_data.segments[segment_id]
+	var tile_pos := Vector2i(int(floor(world_pos.x)), int(floor(world_pos.y)))
+	for conn in segment.connections:
+		if conn.door_pos == tile_pos:
+			loader.transition_to_segment(conn.target_segment, conn.target_pos)
+			return
 
 func _update_screen_position() -> void:
 	# Update sprite and shadow positions from world coordinates
@@ -460,7 +514,7 @@ func _set_action_state(new_state: ActionState) -> void:
 	action_state = new_state
 
 func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
-	if invuln_timer > 0.0:
+	if invuln_timer > 0.0 or is_dead:
 		return
 	hp -= amount
 	invuln_timer = invuln_time
@@ -472,10 +526,56 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
 		world_pos.x += knock.x
 		world_pos.y += knock.y
 	if hp <= 0:
-		hp = max_hp
-		_update_health_bar()
+		_die()
 		return
 	_update_health_bar()
+
+func _die() -> void:
+	is_dead = true
+	hp = 0
+	_update_health_bar()
+	velocity = Vector3.ZERO
+	horizontal_velocity = Vector2.ZERO
+
+	# Brief death visual (flash)
+	if sprite:
+		sprite.modulate = Color(1, 0.3, 0.3, 0.5)
+
+	# Use a timer to delay respawn
+	var timer := get_tree().create_timer(0.5)
+	timer.timeout.connect(_on_death_respawn)
+
+func _on_death_respawn() -> void:
+	if not GameState.lose_life():
+		# Game over
+		if level and level.has_method("show_game_over"):
+			level.show_game_over()
+		else:
+			GameState.go_to_main_menu()
+		return
+
+	# Respawn at checkpoint
+	is_dead = false
+	hp = max_hp
+	_update_health_bar()
+	invuln_timer = invuln_time * 2.0
+	velocity = Vector3.ZERO
+	horizontal_velocity = Vector2.ZERO
+	is_on_ground = true
+	_set_action_state(ActionState.GROUNDED)
+	if sprite:
+		sprite.modulate = Color(1, 1, 1, 1)
+
+	# Respawn at level checkpoint
+	if level and level.has_method("activate_checkpoint"):
+		var loader := level as LevelLoader
+		if loader:
+			# If checkpoint is in a different segment, transition there
+			if loader.last_checkpoint_segment != loader.current_segment_id:
+				var cp_tile := Vector2i(int(floor(loader.last_checkpoint_pos.x)), int(floor(loader.last_checkpoint_pos.y)))
+				loader.transition_to_segment(loader.last_checkpoint_segment, cp_tile)
+			else:
+				set_world_pos(loader.last_checkpoint_pos)
 
 func _update_timers(delta: float) -> void:
 	if invuln_timer > 0.0:

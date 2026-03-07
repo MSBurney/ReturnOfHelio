@@ -1,4 +1,4 @@
-class_name PauseMenu
+class_name GameOverScreen
 extends CanvasLayer
 
 @onready var menu: VBoxContainer = $Panel/Menu
@@ -12,6 +12,7 @@ func _ready() -> void:
 
 func show_menu() -> void:
 	visible = true
+	get_tree().paused = true
 	_update_selection()
 
 func hide_menu() -> void:
@@ -28,8 +29,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_selection()
 	elif event.is_action_pressed("ui_accept"):
 		_activate()
-	elif event.is_action_pressed("ui_cancel"):
-		_resume()
 
 func _update_selection() -> void:
 	for i in range(menu.get_child_count()):
@@ -40,14 +39,8 @@ func _update_selection() -> void:
 func _activate() -> void:
 	match index:
 		0:
-			_resume()
-		1:
 			get_tree().paused = false
 			GameState.restart_game()
-		2:
+		1:
 			get_tree().paused = false
 			GameState.go_to_main_menu()
-
-func _resume() -> void:
-	get_tree().paused = false
-	hide_menu()

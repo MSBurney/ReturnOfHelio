@@ -36,5 +36,8 @@ offset_bottom = 36.0
 [node name="Resume" type="Label" parent="Panel/Menu"]
 text = "Resume"
 
+[node name="Restart" type="Label" parent="Panel/Menu"]
+text = "Restart Level"
+
 [node name="MainMenu" type="Label" parent="Panel/Menu"]
 text = "Main Menu"
