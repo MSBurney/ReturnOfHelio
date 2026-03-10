@@ -1,5 +1,5 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1772898415
+::res://::1773129066
 ::res://data/::1772855684
 ::res://data/levels/::1772872090
 ::res://data/levels/world1/::1772872114
@@ -48,13 +48,13 @@ ground_enemy.tscn::PackedScene::-1::1772743706::0::1::::<><><>0<>0<><>::res://sc
 hazard_enemy.tscn::PackedScene::-1::1772864043::0::1::::<><><>0<>0<><>::res://scripts/enemies/hazard_enemy.gd<>res://scripts/combat/hurtbox.gd<>res://scripts/ui/health_bar.gd
 hopper.tscn::PackedScene::-1::1772870745::0::1::::<><><>0<>0<><>::res://scripts/enemies/hopper.gd<>res://scripts/combat/hurtbox.gd<>res://scripts/ui/health_bar.gd
 king_ribbit.tscn::PackedScene::-1::1772871050::0::1::::<><><>0<>0<><>::res://scripts/enemies/king_ribbit.gd<>res://scripts/combat/hurtbox.gd<>res://scripts/ui/health_bar.gd
-::res://scenes/level/::1772857942
+::res://scenes/level/::1772899059
 checkpoint.tscn::PackedScene::-1::1772855886::0::1::::<><><>0<>0<><>::res://scripts/level/checkpoint.gd
 gate_marker.tscn::PackedScene::5134639566850963480::1772743706::0::1::::<><><>0<>0<><>::res://scripts/level/gate_marker.gd
 level.tscn::PackedScene::-1::1772857942::0::1::::<><><>0<>0<><>::res://scripts/level/level_loader.gd<>res://scenes/player/player.tscn<>res://scenes/ui/pause_menu.tscn<>res://scenes/ui/end_screen.tscn<>res://scenes/ui/game_over_screen.tscn<>res://scenes/ui/hud.tscn<>res://scripts/level/parallax_bg.gd
 pickup.tscn::PackedScene::27210666683720::1772743706::0::1::::<><><>0<>0<><>::res://scripts/level/pickup.gd
 start_marker.tscn::PackedScene::2458078903948819992::1772743706::0::1::::<><><>0<>0<><>::res://scripts/level/start_marker.gd
-test_level.tscn::PackedScene::1342972960988864392::1772743706::0::1::::<><><>0<>0<><>::uid://b5tjdx4jmmrhd::::res://scripts/level/test_level.gd<>uid://player001::::res://scenes/player/player.tscn<>uid://pausemenu001::::res://scenes/ui/pause_menu.tscn<>uid://endscreen001::::res://scenes/ui/end_screen.tscn
+test_level.tscn::PackedScene::1342972960988864392::1772899059::0::1::::<><><>0<>0<><>::uid://b5tjdx4jmmrhd::::res://scripts/level/test_level.gd<>uid://player001::::res://scenes/player/player.tscn<>uid://pausemenu001::::res://scenes/ui/pause_menu.tscn<>uid://endscreen001::::res://scenes/ui/end_screen.tscn
 ::res://scenes/main/::1772743706
 main.tscn::PackedScene::18548884408::1772743706::0::1::::<><><>0<>0<><>::uid://testlevel001::::res://scenes/level/test_level.tscn
 ::res://scenes/player/::1772896209
