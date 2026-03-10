@@ -59,7 +59,7 @@ Two factions seek to capture Lien for their own ends:
 - Lives as a nomad with Anigi in the Higueran rainforest
 - Attends Anigi's Dragon church and considers her his best friend
 
-### Anigi (Player 2 / Commander in Tactical Mode)
+### Anigi (Player 2 in first Helio level / Commander in Tactical Mode)
 
 **Role:** Co-protagonist, Dragon Priestess, tactical commander  
 **Species:** Human (Furiga heritage)  
@@ -163,7 +163,7 @@ The Godai are elemental deities, each consisting of an **Angel** and **Dragon** 
 - Human collaborators and cultists
 - Wrath Demon mercenaries (Gaunt, Grapple, Happyday)
 
-### Ku-Ra (Secondary Antagonists)
+### Ku-Ra (Secondary Antagonist)
 
 **Role:** Former leader of the Godai, was cut into pieces but the pieces were self-aware
 **Motivation:** Believes he can watch over the world better than the Angels in charge.
@@ -211,6 +211,24 @@ The Godai are elemental deities, each consisting of an **Angel** and **Dragon** 
 |-----------|---------|------|--------|
 | **Mr. Truffles** | Moltose | Young dragon, rides on Anigi's shoulder | Default (makes Helio jealous) |
 
+### Anigi's Companions
+
+| Character | Species | Role | Unlock |
+|-----------|---------|------|--------|
+| **Happyday** | Wrath Demon | Lien's false partner, lures her into a trap set by Gaunt & Grapple | Playable in 1st level only |
+| **Fūze** | Godai | Wind Godai | Free Ariel in Sadiran Desert |
+| **Chi-Tsu** | Godai | Stone Godai | Free Quagon in Lutetia, Aurelia |
+| **Hyōri** | Godai | Ice Godai, Lien's mother | Free Penemue in Labolian Highlands |
+| **Ka-Hi** | Godai | Fire Godai | Free Quadamr in Rat Kingdom |
+| **Helio (Drake Form)** | Balloon Dragon | Possible filler character; Lien would briefly turn Helio to his adult form for these sections | Available after first Lien level |
+| **Noxia (Adult Form)** | Balloon Dragon and Wyvern Hybrid | Possible filler character; Lien would briefly turn Noxia to her adult form for these sections | Available after finding Noxia |
+| **Pitlio** | Hybrid fusion of the Angel, Biblio, and the Wrath Demon, the Pitmaster | This is only a filler 2P character for if we have any Lien sections that take place before the first Godai is united | Default |
+| **Pyrael** | Seraph (Dragon) | Filler character if needed for 2P | Comaya Ruins |
+| **Ahmuzca** | Mesodragon | Young dragon, rides on Anigi's shoulder | Panco Ruins |
+
+
+
+
 ### Key NPCs
 
 | Character | Role | Notes |
@@ -224,63 +242,75 @@ The Godai are elemental deities, each consisting of an **Angel** and **Dragon** 
 
 ---
 
-## 6.6 WORLD STRUCTURE (REVISED)
+## 6.6 WORLD STRUCTURE
 
-The nine worlds are restructured around the journey to help the Godai and return Lien home.
+The ten worlds are structured around the journey to help the Godai and return Lien home.
 
-### World 1: Higueran Rainforest
+### World 1: Mushroom Forest, Honduran City, Damaged War Fortress, Beach
 **Theme:** Tutorial, introduction to Helio and Anigi's home  
 **Gimmick:** Basic platforming, Lien rescue  
 **Story:** Helio and Anigi rescue Lien from Tempura's forces, begin journey  
-**Boss:** Demon commander (tutorial boss)
+**Boss:** Frogear (tutorial boss), Snoldier (possessing Shroomix)
 
-### World 2: Crystal Caves (Minos Mountains)
-**Theme:** Underground, gem mines occupied by demons  
-**Gimmick:** Bouncy crystals, darkness, mining hazards  
-**Story:** Discover Tempura's mining operation depleting Gems  
-**Boss:** Mine overseer demon
+### World 2A: Seaside Cliffs (Caxine Bay)
+**Theme:** Ocean, Mayor Máximo's territory, Slime-covered fortress
+**Gimmick:** Water currents, tides, naval elements, slime 
+**Story:** Reunite with Máximo, learn about Godai locations, stop Slime Army invasion
+**Boss:** Slime Queen (possessed by Suffra), Stoorworm
 
-### World 3: Seaside Cliffs (Caxine Bay)
-**Theme:** Ocean, Mayor Máximo's territory  
-**Gimmick:** Water currents, tides, naval elements  
-**Story:** Reunite with Máximo, learn about Godai locations  
-**Boss:** Angel naval commander
+### World 3A: Department of Panco
+**Theme:** Mayan Ruins, rainforest
+**Gimmick:** Honey, explosions, crumbling buildings
+**Story:** Discover Tempura's mining operation depleting Gems, save Yukkan army from possession
+**Boss:** Nik Xolo (possessed by Patu)
 
-### World 4: Volcanic Ruins — Fire Godai Region
-**Theme:** Lava, ancient temples, fire hazards  
-**Gimmick:** Sinking platforms, lava geysers  
-**Story:** Free Ka-Hi (Fire Godai — Nobu and Quadamr)  
-**Boss:** Fire demon warden → Ka-Hi (friendly after victory)
+### World 4A: Queen's District
+**Theme:** City, treasure mounds, burned city
+**Gimmick:** Silver slows down movement, raining fire  
+**Story:** Stop Demons from being sent to Teguci City
+**Boss:** Scarbringer (possessed by Beetlemail)
 
-### World 5: Frozen Peaks — Ice Godai Region
-**Theme:** Ice, snow, Hyōri's domain  
-**Gimmick:** Slippery surfaces, ice puzzles  
-**Story:** Free Hyōri (Ice Godai — Mìyuè and Penemue), Lien reunites with parents  
-**Boss:** Ice angel warden → Hyōri (friendly after victory)
+### World 5A: Sierra Phantasma (Ghost Mountain)
+**Theme:** Mountain, ghosts, supernatural
+**Gimmick:** Disappearing platforms, invisible walls, blue fire
+**Story:** Clear the mountains of the Demon invasion trying to steal souls and take them to Inferno
+**Boss:** Membrane (possessed by Cloudia)
 
-### World 6: Sky Citadel — Wind Godai Region
-**Theme:** Floating islands, clouds, ancient Grouch temple  
-**Gimmick:** Wind gusts, cloud platforms  
-**Story:** Free Fūze (Wind Godai — Langit and Ariel), confront Quetzal's influence  
-**Boss:** Wind demon warden → Fūze (friendly after victory)
+### World 2B: Sadiran Desert - Wind Godai
+**Theme:** Desert, Arabian Palace
+**Gimmick:** Quicksand, Mirages, Ice
+**Story:** Free Ariel and reunite her with Langit 
+**Boss:** Marshmalisk (possesses Ariel)
 
-### World 7: Lalibos Highlands — Stone Godai Region
+### World 3B: Lutetia, Aurelia - Stone Godai
+**Theme:** Basin, plains, 1700s Paris
+**Gimmick:** (need to figure this out)
+**Story:** Free Quagon, who is possessed and invading the capital of Aurelia
+**Boss:** Turret-Mite (possesses Quagon)
+
+### World 4B: Lalibos Highlands — Ice Godai
 **Theme:** Ethiopian-inspired highlands, mountains, caves  
 **Gimmick:** Earthquake hazards, falling rocks  
-**Story:** Free Chi-Tsu (Stone Godai — Dharan and Quagon)  
-**Boss:** Stone angel warden → Chi-Tsu (friendly after victory)
+**Story:** Free Penemue (Stone Godai — Dharan and Quagon)  
+**Boss:** Frogear (possesses Penemue)
 
-### World 8: Factory Complex (Demon Production Facility)
-**Theme:** Industrial, machines, Tempura's war machines  
-**Gimmick:** Conveyor belts, crushers, laser grids  
-**Story:** Sabotage Tempura's factory, confront demon elite  
-**Boss:** Mecha commander
+### World 5B: Lanna-Dara
+**Theme:** Thai Palace
+**Gimmick:** Fire, lava
+**Story:** Kingdom is run over by possessed rats and overflowing with lava, free Quadamr from Green Man's Temple
+**Boss:** Molotov Genie (possesses Quadamr)
 
-### World 9: Tempura's Fortress
-**Theme:** Dark castle, void energy, final challenge  
+### Interlude
+**Theme:** Honduran City, Damaged War Fortress
+**Gimmick:** Spikeballs, vapor clouds
+**Story:** The Godai, now reunited, elect Lien as their new leader. Elka has ordered an attack on all areas surrounding Fort Omoa, including Bagatelle Village
+**Boss:** Elka, Zombuzz 
+
+### World 6: Tempura's Fortres, Skikokai
+**Theme:** Dark castle, void energy, seaside, naval ships final challenge
 **Gimmick:** All mechanics combined  
 **Story:** Final confrontation with Lord Tempura  
-**Boss:** Lord Tempura (multi-phase final boss)
+**Boss:** Lord Tempura (multi-phase final boss), Buzzlebub, Solene, Umbros
 
 ---
 
