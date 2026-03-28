@@ -1,14 +1,65 @@
 class_name Player
 extends IsoEntity
 
-const GroundedStateScript := preload("res://scripts/player/states/grounded_state.gd")
-const AirborneStateScript := preload("res://scripts/player/states/airborne_state.gd")
+const IdleStateScript := preload("res://scripts/player/states/idle_state.gd")
+const WalkStateScript := preload("res://scripts/player/states/walk_state.gd")
+const JumpStateScript := preload("res://scripts/player/states/jump_state.gd")
+const FallStateScript := preload("res://scripts/player/states/fall_state.gd")
+const DoubleJumpStateScript := preload("res://scripts/player/states/double_jump_state.gd")
 const HomingStateScript := preload("res://scripts/player/states/homing_state.gd")
 const HurtStateScript := preload("res://scripts/player/states/hurt_state.gd")
 const DeadStateScript := preload("res://scripts/player/states/dead_state.gd")
 const DashSmokeBurstScene := preload("res://scenes/effects/dash_smoke_burst.tscn")
 const LandDustBurstScene := preload("res://scenes/effects/land_dust_burst.tscn")
 const JumpDustBurstScene := preload("res://scenes/effects/jump_dust_burst.tscn")
+const ProjectileScene := preload("res://scenes/combat/projectile.tscn")
+
+const FORM_DATA := {
+	"serpent": {
+		"move_mul": 1.0,
+		"jump_mul": 1.0,
+		"homing_mul": 1.0,
+		"attack_bonus": 0,
+		"dash_mul": 1.0,
+		"dash_duration_mul": 1.0,
+		"dash_damage_bonus": 0,
+		"charge_radius_mul": 1.0,
+		"damage_reduction": 0,
+	},
+	"burning_bush": {
+		"move_mul": 0.95,
+		"jump_mul": 1.0,
+		"homing_mul": 1.0,
+		"attack_bonus": 1,
+		"dash_mul": 1.0,
+		"dash_duration_mul": 1.0,
+		"dash_damage_bonus": 0,
+		"charge_radius_mul": 1.35,
+		"damage_reduction": 0,
+	},
+	"phocid": {
+		"move_mul": 1.15,
+		"jump_mul": 1.05,
+		"homing_mul": 1.25,
+		"attack_bonus": 0,
+		"dash_mul": 1.1,
+		"dash_duration_mul": 1.15,
+		"dash_damage_bonus": 0,
+		"charge_radius_mul": 1.0,
+		"damage_reduction": 0,
+	},
+	"metalsaur": {
+		"move_mul": 0.78,
+		"jump_mul": 0.85,
+		"homing_mul": 0.9,
+		"attack_bonus": 2,
+		"dash_mul": 0.9,
+		"dash_duration_mul": 1.05,
+		"dash_damage_bonus": 1,
+		"charge_radius_mul": 1.1,
+		"damage_reduction": 1,
+	},
+}
 
 # Movement parameters
 @export var move_speed: float = 108.0  # World units per second
@@ -23,8 +74,8 @@ const JumpDustBurstScene := preload("res://scenes/effects/jump_dust_burst.tscn")
 @export var max_step_height: float = 4.0  # Maximum height we can walk up without jumping
 
 # Combat / movement state
-enum ActionState { GROUNDED, AIRBORNE, HOMING, HURT, DEAD }
-var action_state: ActionState = ActionState.GROUNDED
+enum ActionState { IDLE, WALK, JUMP, FALL, DOUBLE_JUMP, HOMING, HURT, DEAD }
+var action_state: ActionState = ActionState.IDLE
 
 # Player identity / input mapping
 @export var player_id: int = 1
@@ -113,12 +164,26 @@ var invuln_timer: float = 0.0
 var hit_flash_timer: float = 0.0
 var homing_invuln_timer: float = 0.0
 var hurt_state_timer: float = 0.0
+var current_form: String = "serpent"
+var rock_dust_timer: float = 0.0
+var dash_dust_timer: float = 0.0
+var _current_damage_reduction: int = 0
+
+var _base_move_speed: float = 0.0
+var _base_jump_velocity: float = 0.0
+var _base_homing_attack_speed: float = 0.0
+var _base_attack_damage: int = 0
+var _base_charge_radius: float = 0.0
+var _base_dash_distance: float = 0.0
+var _base_dash_duration: float = 0.0
+var _base_dash_damage: int = 0
 
 var _state_map: Dictionary = {}
 var _current_state: PlayerState = null
 var _was_on_ground: bool = true
 var _squash_stretch: Vector2 = Vector2.ONE
 var _squash_timer: float = 0.0
+var animation_state: StringName = &"idle"
 
 # References
 @onready var sprite: Sprite2D = $Sprite
@@ -141,10 +206,12 @@ func _ready() -> void:
 	_setup_input_actions()
 	_setup_states()
 	_setup_placeholder_sprites()
+	_cache_base_tuning()
+	set_form("serpent")
 	_update_screen_position()
 	hp = max_hp
 	_update_health_bar()
-	_set_action_state(ActionState.GROUNDED)
+	_set_action_state(ActionState.IDLE)
 
 func _setup_input_actions() -> void:
 	# Map actions per player
@@ -165,8 +232,11 @@ func _setup_input_actions() -> void:
 
 func _setup_states() -> void:
 	_state_map = {
-		ActionState.GROUNDED: GroundedStateScript.new(),
-		ActionState.AIRBORNE: AirborneStateScript.new(),
+		ActionState.IDLE: IdleStateScript.new(),
+		ActionState.WALK: WalkStateScript.new(),
+		ActionState.JUMP: JumpStateScript.new(),
+		ActionState.FALL: FallStateScript.new(),
+		ActionState.DOUBLE_JUMP: DoubleJumpStateScript.new(),
 		ActionState.HOMING: HomingStateScript.new(),
 		ActionState.HURT: HurtStateScript.new(),
 		ActionState.DEAD: DeadStateScript.new(),
@@ -299,6 +369,7 @@ func _physics_process(delta: float) -> void:
 	_update_depth_sort()
 	_update_explosions(delta)
 	_update_squash_stretch(delta)
+	_update_animation_state()
 
 	_was_on_ground = is_on_ground
 	just_jumped = false
@@ -504,6 +575,9 @@ func _end_dash() -> void:
 func _update_dash_visual(progress: float) -> void:
 	if not dash_flash_sprite:
 		return
+	if GameState.is_reduced_flashes_enabled():
+		dash_flash_sprite.visible = false
+		return
 	dash_flash_sprite.visible = true
 	var pulse: float = 0.55 + 0.45 * sin(progress * PI * 6.0)
 	dash_flash_sprite.modulate = Color(1, 1, 1, clampf(pulse, 0.2, 1.0))
@@ -527,7 +601,7 @@ func _process_jump() -> void:
 			# Ground jump (with coyote time)
 			velocity.z = jump_velocity
 			is_on_ground = false
-			_set_action_state(ActionState.AIRBORNE)
+			_set_action_state(ActionState.JUMP)
 			can_double_jump = true  # Enable double jump after first jump
 			just_jumped = true
 			_play_sfx("jump")
@@ -544,6 +618,7 @@ func _process_jump() -> void:
 				# No target - perform double jump (once per airtime)
 				velocity.z = jump_velocity * 0.8
 				can_double_jump = false
+				_set_action_state(ActionState.DOUBLE_JUMP)
 				_play_sfx("jump")
 				jump_buffer_timer = 0.0
 
@@ -644,7 +719,7 @@ func _process_homing_attack(delta: float) -> void:
 
 func _end_homing_attack(hit_enemy: bool) -> void:
 	is_homing = false
-	_set_action_state(ActionState.AIRBORNE)
+	_set_action_state(ActionState.JUMP)
 	homing_target = null
 	
 	if hit_enemy:
@@ -717,14 +792,14 @@ func _update_collision() -> void:
 			_on_land()
 		velocity.z = 0.0
 		is_on_ground = true
-		_set_action_state(ActionState.GROUNDED)
+		_update_grounded_motion_state()
 		can_double_jump = false  # Reset double jump when landing
 		coyote_timer = coyote_time
 		_check_tile_interaction()
 	else:
 		is_on_ground = false
 		if not is_homing and action_state != ActionState.HURT:
-			_set_action_state(ActionState.AIRBORNE)
+			_set_airborne_state()
 
 func _check_tile_interaction() -> void:
 	if not level:
@@ -744,12 +819,14 @@ func _check_tile_interaction() -> void:
 		TileTypes.TileType.BOUNCE:
 			velocity.z = TileTypes.get_type_bounce(TileTypes.TileType.BOUNCE)
 			is_on_ground = false
-			_set_action_state(ActionState.AIRBORNE)
+			_set_action_state(ActionState.JUMP)
 			can_double_jump = true
 		TileTypes.TileType.DOOR_OPEN:
-			_try_door_transition()
+			# Door transitions are owned by Player 1 to avoid co-op auto-trigger loops.
+			if player_id == 1:
+				_try_door_transition()
 		TileTypes.TileType.DOOR_CLOSED:
-			if GameState.keys > 0 and GameState.use_key():
+			if player_id == 1 and GameState.keys > 0 and GameState.use_key():
 				# Unlock the door in the level's type map
 				if level.has_method("unlock_door_at"):
 					level.unlock_door_at(world_pos.x, world_pos.y)
@@ -769,6 +846,8 @@ func _check_tile_interaction() -> void:
 var _door_cooldown: float = 0.0
 
 func _try_door_transition() -> void:
+	if player_id != 1:
+		return
 	if _door_cooldown > 0.0:
 		return
 	if not level or not level.has_method("transition_to_segment"):
@@ -811,7 +890,30 @@ func _set_action_state(new_state: ActionState) -> void:
 	if _current_state:
 		_current_state.enter(self)
 
+func _update_grounded_motion_state(force: bool = false) -> void:
+	if not force and (is_homing or action_state == ActionState.HURT or action_state == ActionState.DEAD):
+		return
+	_set_action_state(ActionState.WALK if _has_move_input() else ActionState.IDLE)
+
+func _set_airborne_state(force: bool = false) -> void:
+	if not force and (is_homing or action_state == ActionState.HURT or action_state == ActionState.DEAD):
+		return
+	if action_state == ActionState.DOUBLE_JUMP and velocity.z > 0.0:
+		return
+	if velocity.z > 0.0:
+		_set_action_state(ActionState.JUMP)
+	else:
+		_set_action_state(ActionState.FALL)
+
+func _has_move_input() -> bool:
+	var input := Vector2.ZERO
+	input.x = Input.get_axis(_move_left_action, _move_right_action)
+	input.y = Input.get_axis(_move_up_action, _move_down_action)
+	return input.length_squared() > 0.0
+
 func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node = null) -> void:
+	if rock_dust_timer > 0.0:
+		return
 	if (_is_homing_protected() or _is_dash_protected()) and not _is_homing_damage_hazardous(source):
 		return
 	if invuln_timer > 0.0 or is_dead:
@@ -821,7 +923,10 @@ func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO, source: Node =
 	_play_sfx("player_hit")
 	GameState.request_camera_shake(2.2, 0.14)
 	_apply_squash(Vector2(1.4, 0.6), 0.12)
-	hp -= amount
+	var final_damage := maxi(amount - _current_damage_reduction, 0)
+	if final_damage <= 0:
+		return
+	hp -= final_damage
 	invuln_timer = invuln_time
 	hit_flash_timer = hit_flash_time
 	hurt_state_timer = hurt_state_time
@@ -871,6 +976,8 @@ func _die() -> void:
 	is_dead = true
 	_end_dash()
 	_set_action_state(ActionState.DEAD)
+	if level and level.has_method("register_level_death"):
+		level.register_level_death()
 	hp = 0
 	_update_health_bar()
 	velocity = Vector3.ZERO
@@ -900,13 +1007,6 @@ func _on_death_respawn() -> void:
 	hp = max_hp
 	_update_health_bar()
 	invuln_timer = invuln_time * 2.0
-	hurt_state_timer = 0.0
-	velocity = Vector3.ZERO
-	horizontal_velocity = Vector2.ZERO
-	is_on_ground = true
-	_set_action_state(ActionState.GROUNDED)
-	if sprite:
-		sprite.modulate = Color(1, 1, 1, 1)
 
 	# Respawn at level checkpoint
 	if level and level.has_method("activate_checkpoint"):
@@ -917,7 +1017,9 @@ func _on_death_respawn() -> void:
 				var cp_tile := Vector2i(int(floor(loader.last_checkpoint_pos.x)), int(floor(loader.last_checkpoint_pos.y)))
 				loader.transition_to_segment(loader.last_checkpoint_segment, cp_tile)
 			else:
-				set_world_pos(loader.last_checkpoint_pos)
+				respawn_at(loader.last_checkpoint_pos)
+				return
+	respawn_at(world_pos)
 
 func _update_timers(delta: float) -> void:
 	if Input.is_action_just_pressed(_jump_action):
@@ -945,7 +1047,19 @@ func _update_timers(delta: float) -> void:
 	if hurt_state_timer > 0.0:
 		hurt_state_timer = maxf(hurt_state_timer - delta, 0.0)
 		if hurt_state_timer == 0.0 and action_state == ActionState.HURT:
-			_set_action_state(ActionState.GROUNDED if is_on_ground else ActionState.AIRBORNE)
+			if is_on_ground:
+				_update_grounded_motion_state(true)
+			else:
+				_set_airborne_state(true)
+	var effects_changed := false
+	if rock_dust_timer > 0.0:
+		rock_dust_timer = maxf(rock_dust_timer - delta, 0.0)
+		effects_changed = true
+	if dash_dust_timer > 0.0:
+		dash_dust_timer = maxf(dash_dust_timer - delta, 0.0)
+		effects_changed = true
+	if effects_changed:
+		_refresh_form_modifiers()
 
 func _update_health_bar() -> void:
 	if health_bar and health_bar.has_method("set_values"):
@@ -1011,7 +1125,7 @@ func _perform_combo_attack() -> void:
 
 func _perform_charge_attack() -> void:
 	# White flash when charge completes
-	if sprite:
+	if sprite and not GameState.is_reduced_flashes_enabled():
 		sprite.modulate = Color(1, 1, 1, 1)
 		flash_timer = 0.1
 	_play_sfx("attack_charge")
@@ -1022,6 +1136,7 @@ func _perform_charge_attack() -> void:
 		_apply_explosive_damage_at(Vector2(target_pos.x, target_pos.y), charge_damage, charge_radius)
 	else:
 		_apply_explosive_damage(charge_damage, charge_radius)
+	_spawn_form_projectile(target)
 	_start_hand_attack(0, true)
 
 func _apply_cone_damage(damage: int) -> void:
@@ -1241,3 +1356,152 @@ func _update_explosions(delta: float) -> void:
 				var t: float = entry.time / 0.15
 				node.scale = Vector2(1.0 + (1.0 - t), 1.0 + (1.0 - t))
 				node.modulate.a = t
+
+func _spawn_form_projectile(target: Node2D) -> void:
+	if ProjectileScene == null:
+		return
+	if current_form != "burning_bush" and current_form != "metalsaur":
+		return
+	var dir := last_move_dir
+	if target and target.has_method("get_world_pos"):
+		var target_pos: Vector3 = target.get_world_pos()
+		var to_target := Vector2(target_pos.x - world_pos.x, target_pos.y - world_pos.y)
+		if to_target.length_squared() > 0.0:
+			dir = to_target.normalized()
+	if dir.length_squared() == 0.0:
+		dir = Vector2.DOWN
+	var projectile: Node2D = ProjectileScene.instantiate()
+	if get_parent() == null:
+		return
+	get_parent().add_child(projectile)
+	var projectile_color := Color(1.0, 0.5, 0.2, 1.0) if current_form == "burning_bush" else Color(0.8, 0.8, 0.95, 1.0)
+	var projectile_speed := 14.0 if current_form == "burning_bush" else 10.0
+	var projectile_damage := charge_damage if current_form == "burning_bush" else charge_damage + 1
+	var projectile_explosion := charge_radius * 0.9 if current_form == "burning_bush" else 0.0
+	if projectile.has_method("setup"):
+		projectile.setup(
+			Vector3(world_pos.x, world_pos.y, world_pos.z + 6.0),
+			dir.normalized(),
+			self,
+			"player",
+			projectile_damage,
+			projectile_speed,
+			1.2,
+			projectile_color,
+			projectile_explosion
+		)
+
+func apply_powerup(powerup_id: String, duration: float = 8.0) -> void:
+	match powerup_id:
+		"rock_dust":
+			rock_dust_timer = maxf(rock_dust_timer, duration)
+		"dash_dust":
+			dash_dust_timer = maxf(dash_dust_timer, duration)
+		"time_stone":
+			rock_dust_timer = 0.0
+			dash_dust_timer = 0.0
+			set_form("serpent")
+		_:
+			return
+	_refresh_form_modifiers()
+
+func set_form(form_id: String) -> void:
+	if not FORM_DATA.has(form_id):
+		return
+	current_form = form_id
+	_refresh_form_modifiers()
+
+func get_current_form() -> String:
+	return current_form
+
+func add_external_impulse(dir: Vector2, strength: float) -> void:
+	if dir.length_squared() <= 0.0:
+		return
+	horizontal_velocity += dir.normalized() * strength
+
+func respawn_at(respawn_pos: Vector3) -> void:
+	# Reset movement/state so respawns never leave the player stuck in non-jumpable states.
+	_end_dash()
+	is_homing = false
+	homing_target = null
+	charging = false
+	charge_timer = 0.0
+	charge_fired = false
+	combo_step = 0
+	combo_timer = 0.0
+	attack_cooldown = 0.0
+	velocity = Vector3.ZERO
+	horizontal_velocity = Vector2.ZERO
+	can_double_jump = false
+	just_jumped = false
+	jump_buffer_timer = 0.0
+	dash_jump_buffer = 0.0
+	dash_attack_buffer = 0.0
+	hurt_state_timer = 0.0
+	set_world_pos(respawn_pos)
+	is_on_ground = true
+	coyote_timer = coyote_time
+	_set_action_state(ActionState.IDLE)
+	if sprite:
+		sprite.modulate = Color(1, 1, 1, 1)
+
+func _cache_base_tuning() -> void:
+	_base_move_speed = move_speed
+	_base_jump_velocity = jump_velocity
+	_base_homing_attack_speed = homing_attack_speed
+	_base_attack_damage = attack_damage
+	_base_charge_radius = charge_radius
+	_base_dash_distance = dash_distance
+	_base_dash_duration = dash_duration
+	_base_dash_damage = dash_damage
+
+func _refresh_form_modifiers() -> void:
+	var form_data: Dictionary = FORM_DATA.get(current_form, FORM_DATA["serpent"])
+	var move_mul: float = float(form_data.get("move_mul", 1.0))
+	var jump_mul: float = float(form_data.get("jump_mul", 1.0))
+	var homing_mul: float = float(form_data.get("homing_mul", 1.0))
+	var dash_mul: float = float(form_data.get("dash_mul", 1.0))
+	var dash_duration_mul: float = float(form_data.get("dash_duration_mul", 1.0))
+	var charge_radius_mul: float = float(form_data.get("charge_radius_mul", 1.0))
+	var attack_bonus: int = int(form_data.get("attack_bonus", 0))
+	var dash_damage_bonus: int = int(form_data.get("dash_damage_bonus", 0))
+
+	if dash_dust_timer > 0.0:
+		move_mul *= 1.35
+		dash_mul *= 1.4
+		dash_duration_mul *= 1.25
+
+	move_speed = _base_move_speed * move_mul
+	jump_velocity = _base_jump_velocity * jump_mul
+	homing_attack_speed = _base_homing_attack_speed * homing_mul
+	attack_damage = maxi(_base_attack_damage + attack_bonus, 1)
+	charge_radius = _base_charge_radius * charge_radius_mul
+	dash_distance = _base_dash_distance * dash_mul
+	dash_duration = _base_dash_duration * dash_duration_mul
+	dash_damage = maxi(_base_dash_damage + dash_damage_bonus, 1)
+	_current_damage_reduction = int(form_data.get("damage_reduction", 0))
+
+func _update_animation_state() -> void:
+	if is_dead:
+		animation_state = &"dead"
+		return
+	if is_dashing:
+		animation_state = &"dash"
+		return
+	match action_state:
+		ActionState.IDLE:
+			animation_state = &"idle"
+		ActionState.WALK:
+			animation_state = &"walk"
+		ActionState.JUMP:
+			animation_state = &"jump"
+		ActionState.FALL:
+			animation_state = &"fall"
+		ActionState.DOUBLE_JUMP:
+			animation_state = &"double_jump"
+		ActionState.HOMING:
+			animation_state = &"homing"
+		ActionState.HURT:
+			animation_state = &"hurt"
+		ActionState.DEAD:
+			animation_state = &"dead"

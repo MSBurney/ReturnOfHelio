@@ -34,6 +34,8 @@ var hit_flash_timer: float = 0.0
 var contact_timer: float = 0.0
 var _squash_stretch: Vector2 = Vector2.ONE
 var _squash_timer: float = 0.0
+var animation_state: StringName = &"idle"
+var _prev_world_xy: Vector2 = Vector2.ZERO
 
 # References
 @onready var sprite: Sprite2D = $Sprite
@@ -104,6 +106,7 @@ func _process(delta: float) -> void:
 	base_z = ground_height + float_height
 	bob_time += delta * bob_speed
 	world_pos.z = base_z + sin(bob_time) * bob_amplitude
+	_update_animation_state()
 	
 	_update_screen_position()
 	_update_depth_sort()
@@ -121,6 +124,7 @@ func setup(tile_x: int, tile_y: int, ground_height: float) -> void:
 	base_z = ground_height + float_height
 	world_pos = Vector3(tile_x + 0.5, tile_y + 0.5, base_z)
 	patrol_origin = Vector2(world_pos.x, world_pos.y)
+	_prev_world_xy = Vector2(world_pos.x, world_pos.y)
 	bob_time = randf() * TAU  # Random starting phase
 	_update_screen_position()
 	_update_depth_sort()
@@ -151,7 +155,11 @@ func stomp() -> void:
 
 func _die() -> void:
 	# Award score
-	GameState.add_score(score_value)
+	var awarded_score: int = score_value
+	if GameState.has_method("add_score_with_chain"):
+		awarded_score = GameState.add_score_with_chain(score_value)
+	else:
+		GameState.add_score(score_value)
 	GameState.request_camera_shake(1.0, 0.1)
 	var audio := get_node_or_null("/root/AudioManager")
 	if audio and audio.has_method("play_sfx"):
@@ -159,14 +167,14 @@ func _die() -> void:
 	died.emit()
 	# Death particles and score popup
 	_spawn_death_particles()
-	_spawn_score_popup()
+	_spawn_score_popup(awarded_score)
 	queue_free()
 
-func _spawn_score_popup() -> void:
-	if score_value <= 0:
+func _spawn_score_popup(value: int) -> void:
+	if value <= 0:
 		return
 	var screen_pos := IsoUtils.world_to_screen(world_pos)
-	ScorePopup.spawn(get_parent(), screen_pos, score_value)
+	ScorePopup.spawn(get_parent(), screen_pos, value)
 
 func _spawn_death_particles() -> void:
 	if EnemyDeathBurstScene:
@@ -291,3 +299,15 @@ func _update_health_bar() -> void:
 
 func is_hazardous() -> bool:
 	return hazardous
+
+func _update_animation_state() -> void:
+	if hp <= 0:
+		animation_state = &"dead"
+		return
+	if invuln_timer > 0.0:
+		animation_state = &"hit"
+		return
+	var current_xy := Vector2(world_pos.x, world_pos.y)
+	var speed_2d := current_xy.distance_to(_prev_world_xy)
+	_prev_world_xy = current_xy
+	animation_state = &"move" if speed_2d > 0.2 else &"idle"

@@ -108,6 +108,7 @@
                 {"type": "enemy_hopper", "x": 8, "y": 5},
                 {"type": "pickup", "x": 3, "y": 6},
                 {"type": "pickup", "x": 9, "y": 6},
+                {"type": "powerup_dash_dust", "x": 6, "y": 6, "properties": {"duration": 10.0}},
                 {"type": "checkpoint", "x": 12, "y": 6}
             ],
             "connections": [
@@ -185,6 +186,12 @@
                 {"type": "pickup", "x": 5, "y": 5},
                 {"type": "pickup", "x": 7, "y": 6},
                 {"type": "pickup", "x": 11, "y": 6},
+                {"type": "powerup_rock_dust", "x": 9, "y": 6, "properties": {"duration": 6.0}},
+                {"type": "powerup_time_stone", "x": 12, "y": 6, "properties": {"duration": 0.0}},
+                {"type": "form_serpent", "x": 3, "y": 6},
+                {"type": "form_burning_bush", "x": 6, "y": 4},
+                {"type": "form_phocid", "x": 8, "y": 6},
+                {"type": "form_metalsaur", "x": 10, "y": 7},
                 {"type": "goal", "x": 13, "y": 6}
             ],
             "connections": [

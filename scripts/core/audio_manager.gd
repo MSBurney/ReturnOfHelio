@@ -10,8 +10,10 @@ const BUS_AMBIENCE := "Ambience"
 
 var _music_player_a: AudioStreamPlayer
 var _music_player_b: AudioStreamPlayer
+var _ambience_player: AudioStreamPlayer
 var _music_using_a: bool = true
 var _current_music_id: StringName = &""
+var _current_ambience_id: StringName = &""
 var _sfx_pool: Array[AudioStreamPlayer] = []
 var _sfx_library: Dictionary = {}
 var _music_library: Dictionary = {}
@@ -52,6 +54,27 @@ func play_music(track_id: StringName, crossfade_sec: float = 0.4) -> void:
 	tween.tween_property(outgoing, "volume_db", -40.0, maxf(crossfade_sec, 0.01))
 	tween.chain().tween_callback(outgoing.stop)
 
+func play_ambience(track_id: StringName, fade_sec: float = 0.4) -> void:
+	if track_id == _current_ambience_id:
+		return
+	var stream: AudioStream = _music_library.get(track_id, null)
+	if stream == null:
+		return
+	_current_ambience_id = track_id
+	_ambience_player.stream = stream
+	_ambience_player.volume_db = -40.0
+	_ambience_player.play()
+	var tween := create_tween()
+	tween.tween_property(_ambience_player, "volume_db", -8.0, maxf(fade_sec, 0.01))
+
+func stop_ambience(fade_sec: float = 0.3) -> void:
+	_current_ambience_id = &""
+	if not _ambience_player.playing:
+		return
+	var tween := create_tween()
+	tween.tween_property(_ambience_player, "volume_db", -40.0, maxf(fade_sec, 0.01))
+	tween.chain().tween_callback(_ambience_player.stop)
+
 func stop_music() -> void:
 	_current_music_id = &""
 	_music_player_a.stop()
@@ -88,6 +111,10 @@ func _setup_players() -> void:
 	_music_player_b.bus = BUS_MUSIC
 	add_child(_music_player_b)
 
+	_ambience_player = AudioStreamPlayer.new()
+	_ambience_player.bus = BUS_AMBIENCE
+	add_child(_ambience_player)
+
 	for _i in range(8):
 		var player := AudioStreamPlayer.new()
 		player.bus = BUS_SFX
@@ -113,17 +140,17 @@ func _register_default_audio() -> void:
 
 func _register_default_sfx() -> void:
 	var sfx_defs := {
-		"jump": _make_tone_wav(460.0, 0.08, 0.35),
-		"attack": _make_tone_wav(320.0, 0.07, 0.28),
-		"attack_charge": _make_tone_wav(180.0, 0.22, 0.32),
-		"hit": _make_tone_wav(120.0, 0.06, 0.3),
-		"player_hit": _make_tone_wav(140.0, 0.08, 0.33),
-		"player_die": _make_tone_wav(90.0, 0.22, 0.38),
-		"enemy_die": _make_tone_wav(210.0, 0.12, 0.3),
-		"pickup": _make_tone_wav(820.0, 0.06, 0.22),
-		"ui_move": _make_tone_wav(700.0, 0.03, 0.15),
-		"ui_accept": _make_tone_wav(920.0, 0.06, 0.2),
-		"ui_cancel": _make_tone_wav(280.0, 0.05, 0.18),
+		"jump": _load_audio_or_fallback("res://assets/audio/sfx/jump.ogg", _make_tone_wav(460.0, 0.08, 0.35)),
+		"attack": _load_audio_or_fallback("res://assets/audio/sfx/attack.ogg", _make_tone_wav(320.0, 0.07, 0.28)),
+		"attack_charge": _load_audio_or_fallback("res://assets/audio/sfx/attack_charge.ogg", _make_tone_wav(180.0, 0.22, 0.32)),
+		"hit": _load_audio_or_fallback("res://assets/audio/sfx/hit.ogg", _make_tone_wav(120.0, 0.06, 0.3)),
+		"player_hit": _load_audio_or_fallback("res://assets/audio/sfx/player_hit.ogg", _make_tone_wav(140.0, 0.08, 0.33)),
+		"player_die": _load_audio_or_fallback("res://assets/audio/sfx/player_die.ogg", _make_tone_wav(90.0, 0.22, 0.38)),
+		"enemy_die": _load_audio_or_fallback("res://assets/audio/sfx/enemy_die.ogg", _make_tone_wav(210.0, 0.12, 0.3)),
+		"pickup": _load_audio_or_fallback("res://assets/audio/sfx/pickup.ogg", _make_tone_wav(820.0, 0.06, 0.22)),
+		"ui_move": _load_audio_or_fallback("res://assets/audio/sfx/ui_move.ogg", _make_tone_wav(700.0, 0.03, 0.15)),
+		"ui_accept": _load_audio_or_fallback("res://assets/audio/sfx/ui_accept.ogg", _make_tone_wav(920.0, 0.06, 0.2)),
+		"ui_cancel": _load_audio_or_fallback("res://assets/audio/sfx/ui_cancel.ogg", _make_tone_wav(280.0, 0.05, 0.18)),
 	}
 	for event_id in sfx_defs.keys():
 		if _sfx_library.has(event_id):
@@ -132,11 +159,24 @@ func _register_default_sfx() -> void:
 
 func _register_default_music() -> void:
 	if not _music_library.has("title"):
-		register_music("title", _make_music_loop([220.0, 246.94, 293.66, 246.94], 0.45, 2.0, 0.22))
+		register_music("title", _load_audio_or_fallback("res://assets/audio/music/title.ogg", _make_music_loop([220.0, 246.94, 293.66, 246.94], 0.45, 2.0, 0.22)))
 	if not _music_library.has("level"):
-		register_music("level", _make_music_loop([174.61, 196.0, 220.0, 196.0], 0.5, 2.0, 0.2))
+		register_music("level", _load_audio_or_fallback("res://assets/audio/music/level.ogg", _make_music_loop([174.61, 196.0, 220.0, 196.0], 0.5, 2.0, 0.2)))
 	if not _music_library.has("boss"):
-		register_music("boss", _make_music_loop([110.0, 123.47, 130.81, 123.47], 0.4, 2.0, 0.24))
+		register_music("boss", _load_audio_or_fallback("res://assets/audio/music/boss.ogg", _make_music_loop([110.0, 123.47, 130.81, 123.47], 0.4, 2.0, 0.24)))
+	if not _music_library.has("world1_level"):
+		register_music("world1_level", _music_library["level"])
+	if not _music_library.has("world1_boss"):
+		register_music("world1_boss", _music_library["boss"])
+	if not _music_library.has("ambience_wind"):
+		register_music("ambience_wind", _load_audio_or_fallback("res://assets/audio/ambience/wind.ogg", _make_music_loop([82.0, 96.0, 88.0, 76.0], 0.8, 3.2, 0.08)))
+
+func _load_audio_or_fallback(path: String, fallback: AudioStream) -> AudioStream:
+	if ResourceLoader.exists(path):
+		var stream := load(path)
+		if stream is AudioStream:
+			return stream
+	return fallback
 
 func _make_tone_wav(freq_hz: float, duration_sec: float, amplitude: float) -> AudioStreamWAV:
 	var sample_rate := 22050

@@ -1,6 +1,8 @@
 class_name IsoTile
 extends Node2D
 
+signal crumbled(tile_x: int, tile_y: int)
+
 # Tile properties
 @export var tile_x: int = 0
 @export var tile_y: int = 0
@@ -44,6 +46,7 @@ func _process(delta: float) -> void:
 		if crumble_timer >= CRUMBLE_TIME:
 			is_crumbled = true
 			visible = false
+			crumbled.emit(tile_x, tile_y)
 
 func _draw() -> void:
 	if is_crumbled:

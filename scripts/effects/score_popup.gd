@@ -5,6 +5,7 @@ extends Node2D
 
 var text: String = ""
 var lifetime: float = 0.6
+var font_color: Color = Color(1.0, 1.0, 0.4, 1.0)
 var _timer: float = 0.0
 var _label: Label
 
@@ -13,7 +14,7 @@ func _ready() -> void:
 	_label.text = text
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.add_theme_font_size_override("font_size", 8)
-	_label.add_theme_color_override("font_color", Color(1.0, 1.0, 0.4, 1.0))
+	_label.add_theme_color_override("font_color", font_color)
 	_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	_label.add_theme_constant_override("outline_size", 2)
 	_label.position = Vector2(-20, -8)
@@ -29,8 +30,12 @@ func _process(delta: float) -> void:
 		queue_free()
 
 static func spawn(parent: Node, screen_pos: Vector2, value: int) -> void:
+	spawn_text(parent, screen_pos, str(value))
+
+static func spawn_text(parent: Node, screen_pos: Vector2, text_value: String, color: Color = Color(1.0, 1.0, 0.4, 1.0)) -> void:
 	var popup := ScorePopup.new()
-	popup.text = str(value)
+	popup.text = text_value
+	popup.font_color = color
 	popup.position = screen_pos + Vector2(0, -12)
 	popup.z_index = 1100
 	parent.add_child(popup)

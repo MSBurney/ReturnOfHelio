@@ -45,25 +45,14 @@ func _update_selection() -> void:
 func _activate() -> void:
 	match index:
 		0:
-			# Next Level
 			get_tree().paused = false
-			_load_next_level()
+			GameState.go_to_world_map()
 		1:
 			get_tree().paused = false
 			GameState.restart_game()
 		2:
 			get_tree().paused = false
 			GameState.go_to_main_menu()
-
-func _load_next_level() -> void:
-	if GameState.current_level == 0:
-		# Boss level completed — world complete
-		GameState.go_to_main_menu()
-	elif GameState.current_level >= 13:
-		# Last regular level — load boss
-		GameState.load_boss_level(GameState.current_world)
-	else:
-		GameState.load_level(GameState.current_world, GameState.current_level + 1)
 
 func _play_ui_sfx(event_id: String) -> void:
 	var audio := get_node_or_null("/root/AudioManager")

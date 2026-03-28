@@ -214,6 +214,7 @@
                 {"type": "enemy_nibbler", "x": 4, "y": 6},
                 {"type": "enemy_hopper", "x": 7, "y": 5},
                 {"type": "enemy_buzzfly", "x": 10, "y": 6},
+                {"type": "enemy_shooter", "x": 9, "y": 5, "properties": {"shot_interval": 1.1, "shot_range": 9.0}},
                 {"type": "pickup", "x": 5, "y": 5},
                 {"type": "pickup", "x": 12, "y": 6},
                 {"type": "goal", "x": 13, "y": 6}

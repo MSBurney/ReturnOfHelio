@@ -8,12 +8,14 @@ const IsoTileScript := preload("res://scripts/level/iso_tile.gd")
 const EnemyScene := preload("res://scenes/enemies/enemy.tscn")
 const PlayerScene := preload("res://scenes/player/player.tscn")
 const PickupScene := preload("res://scenes/level/pickup.tscn")
+const PowerupPickupScene := preload("res://scenes/level/powerup_pickup.tscn")
 const BossScene := preload("res://scenes/enemies/boss.tscn")
 const KingRibbitScene := preload("res://scenes/enemies/king_ribbit.tscn")
 const GroundEnemyScene := preload("res://scenes/enemies/ground_enemy.tscn")
 const HopperScene := preload("res://scenes/enemies/hopper.tscn")
 const BuzzflyScene := preload("res://scenes/enemies/buzzfly.tscn")
 const HazardEnemyScene := preload("res://scenes/enemies/hazard_enemy.tscn")
+const ShooterEnemyScene := preload("res://scenes/enemies/shooter.tscn")
 const StartMarkerScene := preload("res://scenes/level/start_marker.tscn")
 const GateMarkerScene := preload("res://scenes/level/gate_marker.tscn")
 const CheckpointScene := preload("res://scenes/level/checkpoint.tscn")
@@ -43,6 +45,7 @@ var segment_height: int = 16
 @onready var end_screen: Control = $UI/EndScreen
 @onready var game_over_screen: CanvasLayer = $UI/GameOverScreen
 @onready var hud: Control = $UI/HUD
+@onready var coop_tether: Control = $UI/CoopTether
 @onready var player: Node2D = $Player
 @onready var camera: Camera2D = $Camera2D
 var player2: Node2D = null
@@ -54,8 +57,6 @@ var has_goal: bool = false
 var level_state_id: String = ""
 
 # Game state
-var separation_timer: float = 0.0
-var separation_active: bool = false
 var collected_pickups: int = 0
 var total_pickups: int = 0
 var level_complete: bool = false
@@ -63,14 +64,20 @@ var collected_keys: int = 0
 var checkpoint_nodes: Array[Node2D] = []
 var activated_checkpoints: Dictionary = {}  # "segment_id:x,y" -> true
 var removed_entities: Dictionary = {}  # "segment_id:type:x,y" -> true
-var door_state_overrides: Dictionary = {}  # "segment_id:x,y" -> TileTypes.TileType
+var door_state_overrides: Dictionary = {}  # "segment_id:x,y" -> TileTypes.TileType (door + crumble overrides)
 var _resume_segment_id: String = ""
 var _resume_start_tile: Vector2i = Vector2i.ZERO
 var _has_resume_tile: bool = false
 
-# Co-op tether
+# Co-op tether / camera
 @export var max_player_separation: float = 12.0
-@export var separation_delay: float = 0.8
+@export var tether_rest_length: float = 8.0
+@export var tether_stiffness: float = 10.0
+@export var slingshot_threshold: float = 15.0
+@export var slingshot_impulse: float = 16.0
+@export var camera_zoom_near: float = 1.0
+@export var camera_zoom_far: float = 1.35
+@export var camera_zoom_separation: float = 16.0
 
 # Checkpoint
 var last_checkpoint_pos: Vector3 = Vector3.ZERO
@@ -78,6 +85,9 @@ var last_checkpoint_segment: String = ""
 
 var _camera_shake_time: float = 0.0
 var _camera_shake_intensity: float = 0.0
+var level_elapsed_time: float = 0.0
+var level_deaths: int = 0
+var _slingshot_armed: bool = false
 
 # Level path (set before _ready or via load_level)
 @export var level_json_path: String = ""
@@ -85,8 +95,11 @@ var _camera_shake_intensity: float = 0.0
 func _ready() -> void:
 	if not GameState.camera_shake_requested.is_connected(_on_camera_shake_requested):
 		GameState.camera_shake_requested.connect(_on_camera_shake_requested)
-	var music_track := "boss" if GameState.current_level == 0 else "level"
+	if not GameState.chain_changed.is_connected(_on_chain_changed):
+		GameState.chain_changed.connect(_on_chain_changed)
+	var music_track := "world%d_boss" % GameState.current_world if GameState.current_level == 0 else "world%d_level" % GameState.current_world
 	_play_music(music_track)
+	_play_ambience("ambience_wind")
 	if level_json_path != "":
 		load_level_from_path(level_json_path)
 	else:
@@ -105,6 +118,8 @@ func load_level_from_path(path: String) -> void:
 
 	# Reset level-wide state before optional restore.
 	_reset_runtime_state_defaults()
+	level_elapsed_time = 0.0
+	level_deaths = 0
 
 	# Count total pickups across ALL segments
 	for seg_id in level_data.segments:
@@ -191,6 +206,8 @@ func _generate_tiles(segment: LevelData.SegmentData) -> void:
 		tile.set_script(IsoTileScript)
 		tile_container.add_child(tile)
 		tile.setup(tile_pos.x, tile_pos.y, height, grass_color_a, grass_color_b, tile_type)
+		if tile_type == TileTypes.TileType.CRUMBLE and tile.has_signal("crumbled"):
+			tile.crumbled.connect(_on_crumble_tile_crumbled)
 
 func _spawn_entities(segment: LevelData.SegmentData) -> void:
 	for entity_entry in segment.entities:
@@ -238,6 +255,13 @@ func _spawn_entities(segment: LevelData.SegmentData) -> void:
 				_apply_entity_properties(hazard_enemy, entity_entry.properties)
 				if hazard_enemy.has_signal("died"):
 					hazard_enemy.died.connect(_on_enemy_died.bind(entity_key))
+			"enemy_shooter":
+				var shooter: Node2D = ShooterEnemyScene.instantiate()
+				enemy_container.add_child(shooter)
+				shooter.setup(pos.x, pos.y, ground_height)
+				_apply_entity_properties(shooter, entity_entry.properties)
+				if shooter.has_signal("died"):
+					shooter.died.connect(_on_enemy_died.bind(entity_key))
 			"boss":
 				var boss: Node2D = BossScene.instantiate()
 				boss_container.add_child(boss)
@@ -287,13 +311,26 @@ func _spawn_entities(segment: LevelData.SegmentData) -> void:
 					key_pickup.set_as_key()
 				if key_pickup.has_signal("collected"):
 					key_pickup.collected.connect(_on_key_collected.bind(entity_key))
+			"powerup_rock_dust", "powerup_dash_dust", "powerup_time_stone", "form_serpent", "form_burning_bush", "form_phocid", "form_metalsaur":
+				var utility_pickup: Node2D = PowerupPickupScene.instantiate()
+				pickup_container.add_child(utility_pickup)
+				var duration: float = 8.0
+				if entity_entry.properties.has("duration"):
+					duration = float(entity_entry.properties["duration"])
+				if utility_pickup.has_method("setup"):
+					utility_pickup.setup(Vector3(pos.x + 0.5, pos.y + 0.5, ground_height + 6.0), entity_entry.type, duration)
+				if utility_pickup.has_signal("collected"):
+					utility_pickup.collected.connect(_on_utility_pickup_collected.bind(entity_key))
 
 func _setup_player(start_tile: Vector2i) -> void:
+	_cleanup_duplicate_secondary_players()
 	if player:
 		var start_height: float = float(height_map.get(start_tile, 0.0))
 		player.set_world_pos(Vector3(start_tile.x + 0.5, start_tile.y + 0.5, start_height))
 		if player.has_method("set"):
 			player.set("player_id", 1)
+		if InputManager and InputManager.has_method("assign_device"):
+			InputManager.assign_device(1, -1)
 
 	# Set initial checkpoint
 	var start_height: float = float(height_map.get(start_tile, 0.0))
@@ -304,16 +341,20 @@ func _setup_player(start_tile: Vector2i) -> void:
 	if player_count >= 2:
 		var p2_tile := Vector2i(start_tile.x + 1, start_tile.y)
 		var p2_height: float = float(height_map.get(p2_tile, 0.0))
+		if (not player2 or not is_instance_valid(player2)):
+			player2 = _find_existing_secondary_player()
 		if not player2 or not is_instance_valid(player2):
 			player2 = PlayerScene.instantiate()
 			if player2.has_method("set"):
 				player2.set("player_id", 2)
 			add_child(player2)
 		player2.set_world_pos(Vector3(p2_tile.x + 0.5, p2_tile.y + 0.5, p2_height))
+		if InputManager and InputManager.has_method("assign_device"):
+			InputManager.assign_device(2, -1)
+		_cleanup_duplicate_secondary_players()
 	else:
-		if player2 and is_instance_valid(player2):
-			player2.queue_free()
-		player2 = null
+		_remove_all_secondary_players()
+	_refresh_coop_tether()
 
 func _spawn_markers(start_tile: Vector2i) -> void:
 	var start_height: float = float(height_map.get(start_tile, 0.0))
@@ -331,6 +372,11 @@ func _on_pickup_collected(value: int, entity_key: String = "") -> void:
 
 func _on_key_collected(_value: int, entity_key: String = "") -> void:
 	GameState.add_keys(1)
+	if entity_key != "":
+		removed_entities[entity_key] = true
+	_save_runtime_state()
+
+func _on_utility_pickup_collected(_pickup_type: String, entity_key: String = "") -> void:
 	if entity_key != "":
 		removed_entities[entity_key] = true
 	_save_runtime_state()
@@ -374,6 +420,7 @@ func _check_player_at_goal() -> void:
 	var p2_pos: Vector3 = player2.get_world_pos() if player2 else p1_pos
 	if Vector2(p1_pos.x, p1_pos.y).distance_to(goal_2d) <= 1.75 or Vector2(p2_pos.x, p2_pos.y).distance_to(goal_2d) <= 1.75:
 		level_complete = true
+		GameState.record_level_clear(level_state_id, level_elapsed_time, level_deaths)
 		GameState.complete_current_level()
 		if end_screen and end_screen.has_method("show_menu"):
 			get_tree().paused = true
@@ -391,27 +438,46 @@ func _update_boss_trigger() -> void:
 
 func _update_coop_separation(delta: float) -> void:
 	if not player or not player2:
+		_slingshot_armed = false
 		return
 	var p1: Vector3 = player.get_world_pos()
 	var p2: Vector3 = player2.get_world_pos()
-	var dist := Vector2(p1.x - p2.x, p1.y - p2.y).length()
-	if dist > max_player_separation:
-		separation_timer += delta
-		if separation_timer >= separation_delay:
-			separation_active = true
-			separation_timer = 0.0
-	else:
-		separation_timer = 0.0
-		separation_active = false
+	var to_p2 := Vector2(p2.x - p1.x, p2.y - p1.y)
+	var dist := to_p2.length()
+	if dist <= 0.001:
+		return
+	var dir := to_p2 / dist
 
-	if separation_active:
-		var dir := Vector2(p1.x - p2.x, p1.y - p2.y)
-		if dir.length_squared() > 0.01:
-			var step := dir.normalized() * (max_player_separation * 3.0) * delta
-			var new_pos := Vector2(p2.x, p2.y) + step
-			player2.set_world_pos(Vector3(new_pos.x, new_pos.y, p2.z))
-			if Vector2(p1.x - new_pos.x, p1.y - new_pos.y).length() <= max_player_separation * 0.6:
-				separation_active = false
+	# Elastic pull once players exceed the rest length.
+	if dist > tether_rest_length:
+		var excess := dist - tether_rest_length
+		var pull := dir * excess * tether_stiffness * delta
+		var p1_new := Vector2(p1.x, p1.y) + pull * 0.5
+		var p2_new := Vector2(p2.x, p2.y) - pull * 0.5
+		player.set_world_pos(Vector3(p1_new.x, p1_new.y, p1.z))
+		player2.set_world_pos(Vector3(p2_new.x, p2_new.y, p2.z))
+
+	# Hard clamp to avoid runaway separation.
+	if dist > max_player_separation:
+		var midpoint := Vector2((p1.x + p2.x) * 0.5, (p1.y + p2.y) * 0.5)
+		var half := dir * (max_player_separation * 0.5)
+		var clamped_p1 := midpoint - half
+		var clamped_p2 := midpoint + half
+		player.set_world_pos(Vector3(clamped_p1.x, clamped_p1.y, p1.z))
+		player2.set_world_pos(Vector3(clamped_p2.x, clamped_p2.y, p2.z))
+
+	# Slingshot trigger: arm on high tension, then launch when tension releases.
+	if dist >= slingshot_threshold:
+		_slingshot_armed = true
+	elif _slingshot_armed and dist <= tether_rest_length * 0.9:
+		_slingshot_armed = false
+		var midpoint := Vector2((p1.x + p2.x) * 0.5, (p1.y + p2.y) * 0.5)
+		var p1_dir := Vector2(p1.x, p1.y) - midpoint
+		var p2_dir := Vector2(p2.x, p2.y) - midpoint
+		if player.has_method("add_external_impulse"):
+			player.add_external_impulse(p1_dir, slingshot_impulse)
+		if player2.has_method("add_external_impulse"):
+			player2.add_external_impulse(p2_dir, slingshot_impulse)
 
 func _check_player_fall(p: Node2D) -> void:
 	if not p or not p.has_method("get_world_pos"):
@@ -421,16 +487,28 @@ func _check_player_fall(p: Node2D) -> void:
 		_respawn_player(p)
 
 func _respawn_player(p: Node2D) -> void:
-	if p.has_method("set_world_pos"):
+	if p.has_method("respawn_at"):
+		p.respawn_at(last_checkpoint_pos)
+	elif p.has_method("set_world_pos"):
 		p.set_world_pos(last_checkpoint_pos)
 
 func _process(delta: float) -> void:
+	if not level_complete and not get_tree().paused:
+		level_elapsed_time += delta
 	# Camera follows player(s)
 	if camera and player:
+		var target_zoom := camera_zoom_near
 		if player2:
 			camera.position = (player.position + player2.position) * 0.5
+			if player.has_method("get_world_pos") and player2.has_method("get_world_pos"):
+				var p1_pos: Vector3 = player.get_world_pos()
+				var p2_pos: Vector3 = player2.get_world_pos()
+				var dist := Vector2(p1_pos.x - p2_pos.x, p1_pos.y - p2_pos.y).length()
+				var t := clampf(dist / maxf(camera_zoom_separation, 0.01), 0.0, 1.0)
+				target_zoom = lerpf(camera_zoom_near, camera_zoom_far, t)
 		else:
 			camera.position = player.position
+		camera.zoom = camera.zoom.lerp(Vector2(target_zoom, target_zoom), clampf(delta * 6.0, 0.0, 1.0))
 		_apply_camera_shake(delta)
 
 	_update_coop_separation(delta)
@@ -442,6 +520,9 @@ func _process(delta: float) -> void:
 	_update_hud()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("coop_toggle") and not get_tree().paused:
+		_toggle_secondary_player()
+		return
 	if not _is_escape_pressed(event):
 		return
 	
@@ -455,6 +536,31 @@ func _unhandled_input(event: InputEvent) -> void:
 	if pause_menu and pause_menu.has_method("show_menu"):
 		get_tree().paused = true
 		pause_menu.show_menu()
+
+func _toggle_secondary_player() -> void:
+	if not player:
+		return
+	if player2 and is_instance_valid(player2):
+		player2.queue_free()
+		player2 = null
+		if InputManager and InputManager.has_method("assign_device"):
+			InputManager.assign_device(2, -1)
+		GameState.player_count = 1
+		GameState.save_progress()
+		_refresh_coop_tether()
+		return
+	var p1_pos: Vector3 = player.get_world_pos()
+	var p2_tile: Vector2i = Vector2i(int(floor(p1_pos.x + 1.0)), int(floor(p1_pos.y)))
+	var p2_height: float = float(height_map.get(p2_tile, p1_pos.z))
+	player2 = PlayerScene.instantiate()
+	player2.set("player_id", 2)
+	add_child(player2)
+	player2.set_world_pos(Vector3(p2_tile.x + 0.5, p2_tile.y + 0.5, p2_height))
+	if InputManager and InputManager.has_method("assign_device"):
+		InputManager.assign_device(2, -1)
+	GameState.player_count = 2
+	GameState.save_progress()
+	_refresh_coop_tether()
 
 func _is_escape_pressed(event: InputEvent) -> bool:
 	if not (event is InputEventKey):
@@ -475,6 +581,13 @@ func _play_music(track_id: String) -> void:
 	if audio and audio.has_method("play_music"):
 		audio.play_music(track_id, 0.25)
 
+func _play_ambience(track_id: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var audio := get_node_or_null("/root/AudioManager")
+	if audio and audio.has_method("play_ambience"):
+		audio.play_ambience(track_id, 0.25)
+
 ## Show game over screen
 func show_game_over() -> void:
 	if game_over_screen and game_over_screen.has_method("show_menu"):
@@ -484,8 +597,14 @@ func show_game_over() -> void:
 func transition_to_segment(segment_id: String, target_pos: Vector2i) -> void:
 	if not level_data or not level_data.segments.has(segment_id):
 		return
+	var transition := get_node_or_null("/root/TransitionManager")
+	if transition and transition.has_method("flash"):
+		transition.flash(0.06, 0.06)
 	_load_segment(segment_id, target_pos)
 	_save_runtime_state()
+
+func register_level_death() -> void:
+	level_deaths += 1
 
 ## Activate checkpoint at a position
 func activate_checkpoint(pos: Vector3) -> void:
@@ -547,6 +666,12 @@ func unlock_door_at(world_x: float, world_y: float) -> void:
 			tile.queue_redraw()
 			break
 
+func _on_crumble_tile_crumbled(tile_x: int, tile_y: int) -> void:
+	var tile_pos := Vector2i(tile_x, tile_y)
+	type_map[tile_pos] = TileTypes.TileType.PIT
+	door_state_overrides[_tile_state_key(current_segment_id, tile_pos)] = TileTypes.TileType.PIT
+	_save_runtime_state()
+
 func is_solid_at(world_pos: Vector3) -> bool:
 	var ground_height := get_tile_height_at(world_pos.x, world_pos.y)
 	return world_pos.z <= ground_height
@@ -585,6 +710,57 @@ func _apply_camera_shake(delta: float) -> void:
 	var offset := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * _camera_shake_intensity
 	camera.position += offset
 	_camera_shake_intensity = maxf(_camera_shake_intensity - (delta * 18.0), 0.0)
+
+func _find_existing_secondary_player() -> Node2D:
+	for node in get_tree().get_nodes_in_group("players"):
+		if node == player:
+			continue
+		if not is_instance_valid(node):
+			continue
+		if node.get_parent() != self:
+			continue
+		if node is Node2D:
+			return node as Node2D
+	return null
+
+func _cleanup_duplicate_secondary_players() -> void:
+	var secondary_players: Array[Node2D] = []
+	for node in get_tree().get_nodes_in_group("players"):
+		if node == player:
+			continue
+		if not is_instance_valid(node):
+			continue
+		if node.get_parent() != self:
+			continue
+		if node is Node2D:
+			secondary_players.append(node as Node2D)
+	if secondary_players.is_empty():
+		player2 = null
+		_refresh_coop_tether()
+		return
+	if not player2 or not is_instance_valid(player2):
+		player2 = secondary_players[0]
+	for candidate in secondary_players:
+		if candidate == player2:
+			continue
+		candidate.queue_free()
+	_refresh_coop_tether()
+
+func _remove_all_secondary_players() -> void:
+	for node in get_tree().get_nodes_in_group("players"):
+		if node == player:
+			continue
+		if not is_instance_valid(node):
+			continue
+		if node.get_parent() != self:
+			continue
+		node.queue_free()
+	player2 = null
+	_refresh_coop_tether()
+
+func _refresh_coop_tether() -> void:
+	if coop_tether and coop_tether.has_method("set_players"):
+		coop_tether.set_players(player, player2)
 
 func _resolve_level_state_id() -> String:
 	if level_data and level_data.level_id != "":
@@ -673,3 +849,13 @@ func _node_has_property(node: Object, property_name: String) -> bool:
 		if item is Dictionary and str(item.get("name", "")) == property_name:
 			return true
 	return false
+
+func _on_chain_changed(count: int, _timer: float) -> void:
+	if count <= 1:
+		return
+	var anchor: Node2D = player
+	if (anchor == null or not is_instance_valid(anchor)) and player2 and is_instance_valid(player2):
+		anchor = player2
+	if anchor == null or not is_instance_valid(anchor):
+		return
+	ScorePopup.spawn_text(self, anchor.position + Vector2(0, -24), "CHAIN x%d" % count, Color(1.0, 0.85, 0.25, 1.0))

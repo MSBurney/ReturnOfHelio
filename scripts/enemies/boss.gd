@@ -25,9 +25,12 @@ var phase_thresholds: Array[float] = []  # HP percentages to trigger next phase
 @export var crash_radius: float = 1.0
 @export var crash_height: float = 18.0
 @export var crash_start_radius: float = 3.0
+@export var recovery_vulnerability_time: float = 0.9
 var crash_active: bool = false
 var crash_target: Vector2 = Vector2.ZERO
 var crash_state: int = 0 # 0 idle, 1 telegraph, 2 drop, 3 rise
+var is_vulnerable: bool = true
+var vulnerability_timer: float = 0.0
 
 var target_marker: Node2D = null
 var flash_sprite: Sprite2D = null
@@ -46,6 +49,8 @@ func _ready() -> void:
 	if hurtbox and hurtbox.has_method("set"):
 		# Raise target point toward center of sprite
 		hurtbox.set("z_offset", 8.0)
+	is_vulnerable = true
+	vulnerability_timer = recovery_vulnerability_time
 
 func _setup_placeholder_sprites() -> void:
 	if sprite and sprite.texture == null:
@@ -100,6 +105,7 @@ func _process(delta: float) -> void:
 func _update_ai(delta: float) -> void:
 	if not active:
 		return
+	_update_vulnerability_timer(delta)
 	
 	if enable_slam:
 		slam_timer += delta
@@ -144,11 +150,6 @@ func _on_phase_change(_phase: int) -> void:
 	# Override in subclasses for phase-specific behavior
 	pass
 
-func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
-	super.take_damage(amount, source_dir)
-	if hp > 0:
-		_check_phase_transition()
-
 func _do_slam() -> void:
 	var players := get_tree().get_nodes_in_group("players")
 	for p in players:
@@ -180,6 +181,8 @@ func _update_crash(delta: float) -> void:
 				telegraph_timer = crash_telegraph_time
 				_spawn_target_marker()
 				_show_flash(true)
+				is_vulnerable = false
+				vulnerability_timer = 0.0
 			return
 	
 	if crash_state == 1:
@@ -200,6 +203,7 @@ func _update_crash(delta: float) -> void:
 		if telegraph_timer <= 0.0:
 			_show_flash(false)
 			crash_state = 2
+			is_vulnerable = false
 		return
 	
 	if crash_state == 2:
@@ -216,6 +220,7 @@ func _update_crash(delta: float) -> void:
 		if world_pos.z <= ground:
 			_do_crash_damage()
 			crash_state = 3
+			is_vulnerable = false
 		return
 	
 	if crash_state == 3:
@@ -227,6 +232,8 @@ func _update_crash(delta: float) -> void:
 		if world_pos.z >= ground + crash_height:
 			crash_state = 0
 			crash_active = false
+			is_vulnerable = true
+			vulnerability_timer = recovery_vulnerability_time
 			if sprite:
 				sprite.modulate = Color(1, 1, 1, 1)
 			_clear_target_marker()
@@ -248,6 +255,24 @@ func _do_crash_damage() -> void:
 func _try_contact_damage(_player: Node2D) -> void:
 	# Boss only damages via slam/crash, not passive contact
 	return
+
+func take_damage(amount: int, source_dir: Vector2 = Vector2.ZERO) -> void:
+	if not is_vulnerable:
+		return
+	super.take_damage(amount, source_dir)
+	if hp > 0:
+		_check_phase_transition()
+
+func _update_vulnerability_timer(delta: float) -> void:
+	if crash_state != 0:
+		return
+	if vulnerability_timer > 0.0:
+		vulnerability_timer = maxf(vulnerability_timer - delta, 0.0)
+		is_vulnerable = true
+	else:
+		is_vulnerable = false
+	if sprite:
+		sprite.modulate = Color(1.0, 1.0, 1.0, 1.0) if is_vulnerable else Color(0.8, 0.8, 0.8, 1.0)
 
 func _spawn_target_marker() -> void:
 	_clear_target_marker()
@@ -297,4 +322,7 @@ func _create_flash_texture() -> ImageTexture:
 
 func _show_flash(visible: bool) -> void:
 	if flash_sprite:
-		flash_sprite.visible = visible
+		if GameState.is_reduced_flashes_enabled():
+			flash_sprite.visible = false
+		else:
+			flash_sprite.visible = visible

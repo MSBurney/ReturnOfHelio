@@ -18,6 +18,8 @@ config/features=PackedStringArray("4.5", "Forward Plus")
 
 GameState="*res://scripts/core/game_state.gd"
 AudioManager="*res://scripts/core/audio_manager.gd"
+InputManager="*res://scripts/core/input_manager.gd"
+TransitionManager="*res://scripts/core/transition_manager.gd"
 
 [display]
 

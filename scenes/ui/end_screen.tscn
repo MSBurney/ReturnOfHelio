@@ -36,7 +36,7 @@ offset_right = 80.0
 offset_bottom = 36.0
 
 [node name="NextLevel" type="Label" parent="Panel/Menu"]
-text = "Next Level"
+text = "World Map"
 
 [node name="Restart" type="Label" parent="Panel/Menu"]
 text = "Restart Level"
